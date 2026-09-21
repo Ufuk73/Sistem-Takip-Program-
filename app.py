@@ -146,7 +146,7 @@ try:
 
     # 1. SEKME: TAKİP & FİLTRELEME
     with tab_takip:
-        st.subheader("Sistem Parça Listesi ve Filtreleme")
+        st.subheader("Sistem Parça Listesi, Düzenleme ve Silme")
         
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -184,78 +184,84 @@ try:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)]
                 
-            def durum_renklendir(val):
-                if val == "FAAL":
-                    return "background-color: #d4edda; color: #155724; font-weight: 600;"
-                elif val == "ONARIMDA":
-                    return "background-color: #fff3cd; color: #856404; font-weight: 600;"
-                elif val == "GAYRI FAAL":
-                    return "background-color: #f8d7da; color: #721c24; font-weight: 600;"
-                return ""
+            # Tabloya aktif düzenleme ve silme sütunları ekleniyor
+            duzenlenecek_df = filt_df.copy()
+            if "dosya_adi" in duzenlenecek_df.columns:
+                duzenlenecek_df = duzenlenecek_df.drop(columns=["dosya_adi"])
+                
+            duzenlenecek_df.insert(0, "Düzenle", False)
+            duzenlenecek_df.insert(1, "Sil", False)
 
-            # Tablodan dosya_adi sütununu gizle, yerine kullanıcı dostu sütun ekle
-            gosterim_df = filt_df.copy()
-            if "dosya_adi" in gosterim_df.columns:
-                gosterim_df = gosterim_df.drop(columns=["dosya_adi"])
-            gosterim_df["İşlem"] = "Düzenle veya Sil"
+            st.info("💡 Tablodaki hücreleri doğrudan çift tıklayarak düzenleyebilir, sol baştaki **'Düzenle'** veya **'Sil'** kutucuklarını işaretleyip alttaki butonları kullanarak anında güncelleyebilirsiniz.")
 
-            if "durum" in gosterim_df.columns and not gosterim_df.empty:
-                st.dataframe(gosterim_df.style.map(durum_renklendir, subset=["durum"]), use_container_width=True, hide_index=True)
-            else:
-                st.dataframe(gosterim_df, use_container_width=True, hide_index=True)
+            # Etkileşimli Tablo (Data Editor)
+            edited_df = st.data_editor(
+                duzenlenecek_df,
+                use_container_width=True,
+                hide_index=True,
+                key="parca_editor"
+            )
+
+            col_islem1, col_islem2 = st.columns(2)
             
-            st.markdown("---")
-            st.markdown("### Kayıt Güncelleme / Düzenleme Alanı")
-            secili_id = st.selectbox("İşlem Yapılacak Kayıt ID Seç", [None] + list(filt_df["id"].values))
-            
-            if secili_id:
-                kayit = df_parcalar[df_parcalar["id"] == secili_id].iloc[0]
-                with st.form("guncelle_form"):
-                    g_bolge = st.text_input("Bölge", value=kayit.get("bolge", "") if pd.notna(kayit.get("bolge", "")) else "")
-                    g_sistem = st.text_input("Sistem Adı", value=kayit.get("sistem_adi", "") if pd.notna(kayit.get("sistem_adi", "")) else "")
-                    g_s_pn = st.text_input("Sistem PN", value=kayit.get("sistem_pn", "") if pd.notna(kayit.get("sistem_pn", "")) else "")
-                    g_s_sn = st.text_input("Sistem SN", value=kayit.get("sistem_sn", "") if pd.notna(kayit.get("sistem_sn", "")) else "")
-                    g_parca = st.text_input("Parça Adı", value=kayit.get("parca_adi", "") if pd.notna(kayit.get("parca_adi", "")) else "")
-                    g_p_pn = st.text_input("Parça PN", value=kayit.get("parca_pn", "") if pd.notna(kayit.get("parca_pn", "")) else "")
-                    g_p_sn = st.text_input("Parça SN", value=kayit.get("parca_sn", "") if pd.notna(kayit.get("parca_sn", "")) else "")
+            with col_islem1:
+                if st.button("Seçilen Değişiklikleri / Düzenlemeleri Kaydet", type="primary"):
+                    conn = sqlite3.connect(DB_DOSYASI)
+                    cursor = conn.cursor()
+                    guncellenen_sayisi = 0
                     
-                    mevcut_durum = kayit.get("durum", "FAAL")
-                    if pd.isna(mevcut_durum) or mevcut_durum not in ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"]:
-                        mevcut_durum = "FAAL"
-                    g_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"], index=["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"].index(mevcut_durum))
-                    
-                    g_tarih = st.text_input("Onarım Tarihi (GG.AA.YYYY)", value=kayit.get("onarim_tarih", "") if pd.notna(kayit.get("onarim_tarih", "")) else "")
-                    g_aciklama = st.text_area("Açıklama / Not", value=kayit.get("aciklama", "") if pd.notna(kayit.get("aciklama", "")) else "")
-                    
-                    col_btn1, col_btn2 = st.columns(2)
-                    guncelle_basildi = col_btn1.form_submit_button("Değişiklikleri Kaydet")
-                    sil_basildi = col_btn2.form_submit_button("Kayıt Sil", type="primary")
-                    
-                    if guncelle_basildi:
-                        conn = sqlite3.connect(DB_DOSYASI)
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE parcalar SET bolge=?, sistem_adi=?, sistem_pn=?, sistem_sn=?, parca_adi=?, parca_pn=?, parca_sn=?, durum=?, onarim_tarih=?, aciklama=?
-                            WHERE id=?
-                        """, (tr_upper(g_bolge), tr_upper(g_sistem), tr_upper(g_s_pn), tr_upper(g_s_sn), tr_upper(g_parca), tr_upper(g_p_pn), tr_upper(g_p_sn), g_durum, g_tarih, tr_upper(g_aciklama), secili_id))
-                        
-                        cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
-                                       (tr_upper(g_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"GÜNCELLEME ({g_durum})", tr_upper(g_aciklama)))
-                        conn.commit()
-                        conn.close()
-                        log_yaz("GÜNCELLEME", f"ID {secili_id} güncellendi.")
-                        st.success("Kayıt başarıyla güncellendi!")
+                    for _, row in edited_df.iterrows():
+                        if row["Düzenle"] == True:
+                            r_id = row["id"]
+                            cursor.execute("""
+                                UPDATE parcalar SET bolge=?, sistem_adi=?, sistem_pn=?, sistem_sn=?, parca_adi=?, parca_pn=?, parca_sn=?, durum=?, onarim_tarih=?, aciklama=?
+                                WHERE id=?
+                            """, (
+                                tr_upper(row.get("bolge", "")),
+                                tr_upper(row.get("sistem_adi", "")),
+                                tr_upper(row.get("sistem_pn", "")),
+                                tr_upper(row.get("sistem_sn", "")),
+                                tr_upper(row.get("parca_adi", "")),
+                                tr_upper(row.get("parca_pn", "")),
+                                tr_upper(row.get("parca_sn", "")),
+                                row.get("durum", "FAAL"),
+                                row.get("onarim_tarih", ""),
+                                tr_upper(row.get("aciklama", "")),
+                                r_id
+                            ))
+                            cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
+                                           (tr_upper(row.get("parca_sn", "")), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"GÜNCELLEME ({row.get('durum', 'FAAL')})", tr_upper(row.get("aciklama", ""))))
+                            guncellenen_sayisi += 1
+                            
+                    conn.commit()
+                    conn.close()
+                    if guncellenen_sayisi > 0:
+                        log_yaz("GÜNCELLEME", f"{guncellenen_sayisi} adet kayıt tablodan güncellendi.")
+                        st.success(f"{guncellenen_sayisi} adet kayıt başarıyla güncellendi!")
                         st.rerun()
-                        
-                    if sil_basildi:
-                        conn = sqlite3.connect(DB_DOSYASI)
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM parcalar WHERE id=?", (secili_id,))
-                        conn.commit()
-                        conn.close()
-                        log_yaz("SİLME", f"ID {secili_id} silindi.")
-                        st.success("Kayıt silindi!")
+                    else:
+                        st.warning("Düzenlemek için satır başındaki 'Düzenle' kutucuğunu işaretleyin.")
+
+            with col_islem2:
+                if st.button("İşaretlenen Kayıtları Sil"):
+                    conn = sqlite3.connect(DB_DOSYASI)
+                    cursor = conn.cursor()
+                    silinen_sayisi = 0
+                    
+                    for _, row in edited_df.iterrows():
+                        if row["Sil"] == True:
+                            r_id = row["id"]
+                            cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
+                            silinen_sayisi += 1
+                            
+                    conn.commit()
+                    conn.close()
+                    if silinen_sayisi > 0:
+                        log_yaz("SİLME", f"{silinen_sayisi} adet kayıt silindi.")
+                        st.success(f"{silinen_sayisi} adet kayıt silindi!")
                         st.rerun()
+                    else:
+                        st.warning("Silmek için satır başındaki 'Sil' kutucuğunu işaretleyin.")
         else:
             st.info("Henüz kayıt bulunmuyor.")
 
@@ -299,11 +305,9 @@ try:
     with tab_ekle:
         st.subheader("Yeni Sistem / Parça Kaydı Ekle")
         
-        # Daha önce girilmiş bölgeleri çek
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         
         with st.form("yeni_kayit_formu", clear_on_submit=True):
-            # Bölge seçimi için hem eski kayıtlar arasından seçme hem de manuel ekleme opsiyonu
             secim_tipi = st.radio("Bölge Giriş Yöntemi", ["Kayıtlı Bölgelerden Seç", "Yeni Bölge Yaz"], horizontal=True)
             if secim_tipi == "Kayıtlı Bölgelerden Seç" and len(kayitli_bolgeler) > 0:
                 e_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler)
