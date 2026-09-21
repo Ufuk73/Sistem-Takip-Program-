@@ -184,7 +184,7 @@ try:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)]
                 
-            # Tablo renklendirme fonksiyonu
+            # Tablo renklendirme fonksiyonu (applymap yerine güncel .map fonksiyonu kullanıldı)
             def durum_renklendir(val):
                 if val == "FAAL":
                     return "background-color: #d4edda; color: #155724;"  # Açık Yeşil
@@ -195,7 +195,7 @@ try:
                 return ""
 
             if "durum" in filt_df.columns and not filt_df.empty:
-                st.dataframe(filt_df.style.applymap(durum_renklendir, subset=["durum"]), use_container_width=True, hide_index=True)
+                st.dataframe(filt_df.style.map(durum_renklendir, subset=["durum"]), use_container_width=True, hide_index=True)
             else:
                 st.dataframe(filt_df, use_container_width=True, hide_index=True)
             
