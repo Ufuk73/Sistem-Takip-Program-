@@ -121,7 +121,7 @@ try:
 
     if kritik > 0:
         st.error(f"⚠️ **DİKKAT:** 30 Günü Aşan Onarımda Bekleyen **{kritik}** Adet Parça Bulunuyor!")
-        with st.expander("Kritik Parçaları Listele"):
+        with st.expander("Kritik Parçaları Listele", expanded=False):
             for k_bilgi in kritik_liste:
                 st.markdown(k_bilgi)
 
@@ -192,7 +192,7 @@ try:
                     st.success("Kayıt güncellendi!")
                     st.rerun()
 
-    # 1. SEKME: TAKİP & FİLTRELEME (BÖLGE BÖLGE GRUPLANMIŞ LİSTE)
+    # 1. SEKME: TAKİP & FİLTRELEME (BÖLGE BÖLGE KAPALI / GRUPLANMIŞ LİSTE)
     with tab_takip:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -234,7 +234,8 @@ try:
             
             if not filt_df.empty and "bolge" in filt_df.columns:
                 for b_adi, b_grubu in filt_df.groupby("bolge"):
-                    with st.expander(f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)", expanded=True):
+                    # expanded=False yapılarak tüm bölgeler varsayılan olarak kapalı başlatıldı
+                    with st.expander(f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)", expanded=False):
                         # Kompakt Başlık Satırı
                         h1, h2, h3, h4, h5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
                         h1.markdown("<small><b>SİSTEM ADI</b></small>", unsafe_allow_html=True)
@@ -376,7 +377,7 @@ try:
         if not df_loglar.empty:
             st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
-    # 5. SEKME: PARÇA GEÇMİŞİ (YÖNETİMİN HEMEN ÖNÜNDE)
+    # 5. SEKME: PARÇA GEÇMİŞİ (YÖNETİMİN HEMEN ÖNÜNDE VE KAPALI BAŞLANGIÇLI)
     with tab_gecmis:
         st.subheader("Bölge Bazlı Parça ve İşlem Geçmişi")
         
@@ -391,7 +392,8 @@ try:
                     bolge_filtreli_df = bolge_filtreli_df[bolge_filtreli_df["bolge"] == secilen_gecmis_bolge]
                 
                 for bolge_adi, bolge_grubu in bolge_filtreli_df.groupby("bolge"):
-                    with st.expander(f"📍 BÖLGE: {bolge_adi} ({len(bolge_grubu)} Parça)", expanded=(secilen_gecmis_bolge != "TÜM BÖLGELER")):
+                    # expanded=False yapılarak bu sekmedeki bölgeler de varsayılan kapalı yapıldı
+                    with st.expander(f"📍 BÖLGE: {bolge_adi} ({len(bolge_grubu)} Parça)", expanded=False):
                         for _, p_row in bolge_grubu.iterrows():
                             p_ad = p_row.get("parca_adi", "-")
                             p_sn = p_row.get("parca_sn", "-")
