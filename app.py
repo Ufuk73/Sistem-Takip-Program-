@@ -305,18 +305,41 @@ try:
         else:
             st.info("Geçmiş için uygun SN yok.")
 
-    # 3. SEKME: YENİ KAYIT EKLE
+    # 3. SEKME: YENİ KAYIT EKLE (OTOMATİK DOLDURMA ÖZELLİKLİ)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         
-        with st.form("yeni_kayit_formu", clear_on_submit=True):
-            secim_tipi = st.radio("Bölge Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True)
-            e_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler) if secim_tipi == "Kayıtlı Seç" and len(kayitli_bolgeler) > 0 else st.text_input("Yeni Bölge Adı")
+        # Otomatik Doldurma İçin Önceden Tanımlı Değerleri Çekme Mekanizması
+        secim_tipi = st.radio("Bölge Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True, key="form_secim_tipi")
+        
+        aktif_bolge = ""
+        if secim_tipi == "Kayıtlı Seç" and len(kayitli_bolgeler) > 0:
+            aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge")
+        else:
+            aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
 
-            e_sistem = st.text_input("Sistem Adı")
+        # Seçilen/Yazılan bölgeye ait daha önceden kayıtlı sistem bilgileri var mı bakalım
+        varsayilan_sistem = ""
+        varsayilan_s_pn = ""
+        varsayilan_s_sn = ""
+        
+        if aktif_bolge and not df_parcalar.empty and "bolge" in df_parcalar.columns:
+            eslesen_kayitlar = df_parcalar[df_parcalar["bolge"].str.upper() == str(aktif_bolge).upper()]
+            if not eslesen_kayitlar.empty:
+                # En son girilen veya eşleşen ilk kaydı baz alalım
+                son_kayit = eslesen_kayitlar.iloc[-1]
+                varsayilan_sistem = son_kayit.get("sistem_adi", "") if pd.notna(son_kayit.get("sistem_adi", "")) else ""
+                varsayilan_s_pn = son_kayit.get("sistem_pn", "") if pd.notna(son_kayit.get("sistem_pn", "")) else ""
+                varsayilan_s_sn = son_kayit.get("sistem_sn", "") if pd.notna(son_kayit.get("sistem_sn", "")) else ""
+
+        with st.form("yeni_kayit_formu", clear_on_submit=True):
+            # Bölgeyi form içinde görünür kılmak için hidden ya da tekrar okunabilir tutuyoruz
+            st.markdown(f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`")
+            
+            e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
             c1, c2 = st.columns(2)
-            e_s_pn = c1.text_input("Sistem PN")
-            e_s_sn = c2.text_input("Sistem SN")
+            e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
+            e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
             
             e_parca = st.text_input("Parça Adı")
             c3, c4 = st.columns(2)
@@ -329,7 +352,7 @@ try:
             yuklenen_dosya_form = st.file_uploader("Belge/Fotoğraf", type=["png", "jpg", "jpeg", "pdf"])
             
             if st.form_submit_button("Sisteme Kaydet", type="primary"):
-                if not e_bolge or not e_sistem or not e_parca:
+                if not aktif_bolge or not e_sistem or not e_parca:
                     st.warning("Bölge, Sistem Adı ve Parça Adı zorunludur!")
                 else:
                     dosya_ismi = None
@@ -343,13 +366,13 @@ try:
                     cursor.execute("""
                         INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (tr_upper(e_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih, tr_upper(e_aciklama), dosya_ismi))
+                    """, (tr_upper(aktif_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih, tr_upper(e_aciklama), dosya_ismi))
                     
                     cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
                                    (tr_upper(e_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"İLK KAYIT ({e_durum})", tr_upper(e_aciklama)))
                     conn.commit()
                     conn.close()
-                    log_yaz("YENİ KAYIT", f"Bölge: {e_bolge}, Sistem: {e_sistem} eklendi.")
+                    log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
                     st.success("Kayıt eklendi!")
                     st.rerun()
 
