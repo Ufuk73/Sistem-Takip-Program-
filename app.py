@@ -83,6 +83,39 @@ try:
 
     veritabanini_hazirla()
 
+    # --- ÖZEL SİYAH TEMA VE ÇERÇEVE CSS ---
+    st.markdown("""
+    <style>
+    /* Tüm uygulamanın arka planını siyah yapma */
+    .stApp {
+        background-color: #121212;
+        color: #e0e0e0;
+    }
+    
+    /* Metrik Kartları (Siyah Tema Uyumlu) */
+    .metric-card {
+        background-color: #1e1e1e;
+        border: 1px solid #333333;
+        border-radius: 8px;
+        padding: 12px 15px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .metric-title {
+        font-size: 13px;
+        color: #a0a0a0;
+        font-weight: 600;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+    }
+    .metric-value {
+        font-size: 22px;
+        color: #ffffff;
+        font-weight: 700;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # --- ÜST BAŞLIK ---
     st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
 
@@ -121,49 +154,23 @@ try:
             for k_bilgi in kritik_liste:
                 st.markdown(k_bilgi)
 
-    # --- ÇERÇEVELİ (KART) GÖRÜNÜM İÇİN ÖZEL CSS ---
-    st.markdown("""
-    <style>
-    .metric-card {
-        background-color: #f8f9fa;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 12px 15px;
-        text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
-    .metric-title {
-        font-size: 13px;
-        color: #6c757d;
-        font-weight: 600;
-        margin-bottom: 4px;
-        text-transform: uppercase;
-    }
-    .metric-value {
-        font-size: 22px;
-        color: #333333;
-        font-weight: 700;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
     # Metrikleri Çerçeveli Sütunlar Halinde Yerleştirme
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     
     with c1:
         st.markdown(f'<div class="metric-card"><div class="metric-title">Toplam</div><div class="metric-value">{toplam}</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Faal</div><div class="metric-value" style="color: #28a745;">{faal}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Faal</div><div class="metric-value" style="color: #2ecc71;">{faal}</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Yedek</div><div class="metric-value" style="color: #17a2b8;">{yedek}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Yedek</div><div class="metric-value" style="color: #3498db;">{yedek}</div></div>', unsafe_allow_html=True)
     with c4:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Onarımda</div><div class="metric-value" style="color: #ffc107;">{onarimda}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Onarımda</div><div class="metric-value" style="color: #f1c40f;">{onarimda}</div></div>', unsafe_allow_html=True)
     with c5:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Kritik (30+)</div><div class="metric-value" style="color: #dc3545;">{kritik}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Kritik (30+)</div><div class="metric-value" style="color: #e74c3c;">{kritik}</div></div>', unsafe_allow_html=True)
     with c6:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Gayri Faal</div><div class="metric-value" style="color: #343a40;">{gayri}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Gayri Faal</div><div class="metric-value" style="color: #95a5a6;">{gayri}</div></div>', unsafe_allow_html=True)
 
-    st.markdown("<hr style='margin:15px 0 10px 0;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:15px 0 10px 0; border-color: #333333;'>", unsafe_allow_html=True)
 
     tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
         "📋 Sistem Takip", 
@@ -301,7 +308,7 @@ try:
                         h3.markdown("<small><b>DURUM / TARİH</b></small>", unsafe_allow_html=True)
                         h4.markdown("<small><b>DÜZENLE</b></small>", unsafe_allow_html=True)
                         h5.markdown("<small><b>SİL</b></small>", unsafe_allow_html=True)
-                        st.markdown("<hr style='margin:2px 0 5px 0;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin:2px 0 5px 0; border-color: #333;'>", unsafe_allow_html=True)
 
                         for _, row in b_grubu.iterrows():
                             r_id = row["id"]
@@ -311,11 +318,11 @@ try:
                             c1, c2, c3, c4, c5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
                             
                             with c1:
-                                st.markdown(f"<div style='line-height: 1.1;'><small><b>{row.get('sistem_adi', '-')}</b><br><span style='color:gray;'>PN: {row.get('sistem_pn', '-')}</span></small></div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='line-height: 1.1;'><small><b>{row.get('sistem_adi', '-')}</b><br><span style='color:#a0a0a0;'>PN: {row.get('sistem_pn', '-')}</span></small></div>", unsafe_allow_html=True)
                             with c2:
-                                st.markdown(f"<div style='line-height: 1.1;'><small>{row.get('parca_adi', '-')}<br><span style='color:gray;'>SN: {row.get('parca_sn', '-')}</span></small></div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='line-height: 1.1;'><small>{row.get('parca_adi', '-')}<br><span style='color:#a0a0a0;'>SN: {row.get('parca_sn', '-')}</span></small></div>", unsafe_allow_html=True)
                             with c3:
-                                st.markdown(f"<div style='line-height: 1.1;'><small>{durum_badge}<br><span style='color:gray;'>{row.get('onarim_tarih', '-')}</span></small></div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='line-height: 1.1;'><small>{durum_badge}<br><span style='color:#a0a0a0;'>{row.get('onarim_tarih', '-')}</span></small></div>", unsafe_allow_html=True)
                                 
                             with c4:
                                 if st.button("✏️", key=f"edit_{r_id}", help="Düzenle"):
@@ -332,7 +339,7 @@ try:
                                     st.success("Silindi!")
                                     st.rerun()
 
-                            st.markdown("<hr style='margin:3px 0;'>", unsafe_allow_html=True)
+                            st.markdown("<hr style='margin:3px 0; border-color: #333;'>", unsafe_allow_html=True)
             else:
                 st.info("Filtreleme kriterlerine uygun kayıt bulunamadı.")
         else:
@@ -474,9 +481,9 @@ try:
                                 for _, g_row in df_p_gecmis.iterrows():
                                     st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🕒 <small>{g_row['tarih']} — 📌 **{g_row['islem']}** : {g_row['aciklama']}</small>", unsafe_allow_html=True)
                             else:
-                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<small style='color:gray;'>Geçmiş işlem kaydı bulunmuyor.</small>", unsafe_allow_html=True)
+                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<small style='color:#a0a0a0;'>Geçmiş işlem kaydı bulunmuyor.</small>", unsafe_allow_html=True)
                                 
-                            st.markdown("<hr style='margin:5px 0; border-top: 1px dashed #ddd;'>", unsafe_allow_html=True)
+                            st.markdown("<hr style='margin:5px 0; border-top: 1px dashed #444;'>", unsafe_allow_html=True)
             else:
                 st.info("Kayıtlı bölge bulunamadı.")
         else:
