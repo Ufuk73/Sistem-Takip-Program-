@@ -135,12 +135,13 @@ try:
 
     st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
 
-    tab_takip, tab_gecmis, tab_ekle, tab_notlar, tab_loglar, tab_yonetim = st.tabs([
+    # Sekme Sıralaması: Takip, Yeni Kayıt, Notlar, Loglar, Parça Geçmişi (Yönetimin hemen önü), Yönetim
+    tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
         "📋 Sistem Takip", 
-        "🔍 Parça Geçmişi",
         "➕ Yeni Kayıt", 
         "📝 Notlar", 
         "📜 Loglar", 
+        "🔍 Parça Geçmişi",
         "⚙️ Yönetim"
     ])
 
@@ -191,7 +192,7 @@ try:
                     st.success("Kayıt güncellendi!")
                     st.rerun()
 
-    # 1. SEKME: TAKİP & FİLTRELEME (Kompakt Özel Satır Görünümü)
+    # 1. SEKME: TAKİP & FİLTRELEME (BÖLGE BÖLGE GRUPLANMIŞ LİSTE)
     with tab_takip:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -231,81 +232,54 @@ try:
                 
             st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
             
-            # Kompakt Başlık Satırı (Daraltılmış Oranlar)
-            h1, h2, h3, h4, h5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
-            h1.markdown("<small><b>BÖLGE / SİSTEM</b></small>", unsafe_allow_html=True)
-            h2.markdown("<small><b>PARÇA & SERİ NO</b></small>", unsafe_allow_html=True)
-            h3.markdown("<small><b>DURUM / TARİH</b></small>", unsafe_allow_html=True)
-            h4.markdown("<small><b>DÜZENLE</b></small>", unsafe_allow_html=True)
-            h5.markdown("<small><b>SİL</b></small>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:2px 0 5px 0;'>", unsafe_allow_html=True)
+            if not filt_df.empty and "bolge" in filt_df.columns:
+                for b_adi, b_grubu in filt_df.groupby("bolge"):
+                    with st.expander(f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)", expanded=True):
+                        # Kompakt Başlık Satırı
+                        h1, h2, h3, h4, h5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
+                        h1.markdown("<small><b>SİSTEM ADI</b></small>", unsafe_allow_html=True)
+                        h2.markdown("<small><b>PARÇA & SERİ NO</b></small>", unsafe_allow_html=True)
+                        h3.markdown("<small><b>DURUM / TARİH</b></small>", unsafe_allow_html=True)
+                        h4.markdown("<small><b>DÜZENLE</b></small>", unsafe_allow_html=True)
+                        h5.markdown("<small><b>SİL</b></small>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin:2px 0 5px 0;'>", unsafe_allow_html=True)
 
-            # Kompakt Satırlar
-            for _, row in filt_df.iterrows():
-                r_id = row["id"]
-                durum = row.get("durum", "FAAL")
-                durum_badge = f"🟢 {durum}" if durum == "FAAL" else f"🟡 {durum}" if durum == "ONARIMDA" else f"🔴 {durum}" if durum == "GAYRI FAAL" else f"🔵 {durum}"
+                        for _, row in b_grubu.iterrows():
+                            r_id = row["id"]
+                            durum = row.get("durum", "FAAL")
+                            durum_badge = f"🟢 {durum}" if durum == "FAAL" else f"🟡 {durum}" if durum == "ONARIMDA" else f"🔴 {durum}" if durum == "GAYRI FAAL" else f"🔵 {durum}"
 
-                c1, c2, c3, c4, c5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
-                
-                with c1:
-                    st.markdown(f"<div style='line-height: 1.1;'><small><b>{row.get('bolge', '-')}</b><br><span style='color:gray;'>{row.get('sistem_adi', '-')}</span></small></div>", unsafe_allow_html=True)
-                with c2:
-                    st.markdown(f"<div style='line-height: 1.1;'><small>{row.get('parca_adi', '-')}<br><span style='color:gray;'>SN: {row.get('parca_sn', '-')}</span></small></div>", unsafe_allow_html=True)
-                with c3:
-                    st.markdown(f"<div style='line-height: 1.1;'><small>{durum_badge}<br><span style='color:gray;'>{row.get('onarim_tarih', '-')}</span></small></div>", unsafe_allow_html=True)
-                    
-                with c4:
-                    if st.button("✏️", key=f"edit_{r_id}", help="Düzenle"):
-                        duzenle_dialog(r_id)
-                        
-                with c5:
-                    if st.button("🗑️", key=f"del_{r_id}", help="Sil"):
-                        conn = sqlite3.connect(DB_DOSYASI)
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
-                        conn.commit()
-                        conn.close()
-                        log_yaz("SİLME", f"ID {r_id} silindi.")
-                        st.success("Silindi!")
-                        st.rerun()
+                            c1, c2, c3, c4, c5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
+                            
+                            with c1:
+                                st.markdown(f"<div style='line-height: 1.1;'><small><b>{row.get('sistem_adi', '-')}</b><br><span style='color:gray;'>PN: {row.get('sistem_pn', '-')}</span></small></div>", unsafe_allow_html=True)
+                            with c2:
+                                st.markdown(f"<div style='line-height: 1.1;'><small>{row.get('parca_adi', '-')}<br><span style='color:gray;'>SN: {row.get('parca_sn', '-')}</span></small></div>", unsafe_allow_html=True)
+                            with c3:
+                                st.markdown(f"<div style='line-height: 1.1;'><small>{durum_badge}<br><span style='color:gray;'>{row.get('onarim_tarih', '-')}</span></small></div>", unsafe_allow_html=True)
+                                
+                            with c4:
+                                if st.button("✏️", key=f"edit_{r_id}", help="Düzenle"):
+                                    duzenle_dialog(r_id)
+                                    
+                            with c5:
+                                if st.button("🗑️", key=f"del_{r_id}", help="Sil"):
+                                    conn = sqlite3.connect(DB_DOSYASI)
+                                    cursor = conn.cursor()
+                                    cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
+                                    conn.commit()
+                                    conn.close()
+                                    log_yaz("SİLME", f"ID {r_id} silindi.")
+                                    st.success("Silindi!")
+                                    st.rerun()
 
-                st.markdown("<hr style='margin:3px 0;'>", unsafe_allow_html=True)
+                            st.markdown("<hr style='margin:3px 0;'>", unsafe_allow_html=True)
+            else:
+                st.info("Filtreleme kriterlerine uygun kayıt bulunamadı.")
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: PARÇA GEÇMİŞİ
-    with tab_gecmis:
-        st.subheader("Parça Geçmişi")
-        tum_sn = df_parcalar["parca_sn"].dropna().unique() if not df_parcalar.empty and "parca_sn" in df_parcalar.columns else []
-        
-        if len(tum_sn) > 0:
-            secilen_sn = st.selectbox("Parça Seri Numarası (SN) Seç", tum_sn)
-            if secilen_sn:
-                parca_detay = df_parcalar[df_parcalar["parca_sn"] == secilen_sn]
-                st.markdown(f"<small><b>Parça:</b> {parca_detay.iloc[0]['parca_adi']} | <b>Sistem:</b> {parca_detay.iloc[0]['sistem_adi']} | <b>Bölge:</b> {parca_detay.iloc[0]['bolge']}</small>", unsafe_allow_html=True)
-                
-                dosya_adi = parca_detay.iloc[0].get("dosya_adi")
-                if pd.notna(dosya_adi) and dosya_adi:
-                    dosya_yolu = os.path.join(UPLOAD_FOLDER, dosya_adi)
-                    if os.path.exists(dosya_yolu):
-                        with open(dosya_yolu, "rb") as file_in:
-                            st.download_button("📥 Belgeyi İndir", data=file_in, file_name=dosya_adi)
-
-                conn = sqlite3.connect(DB_DOSYASI)
-                df_gecmis = pd.read_sql_query("SELECT tarih, islem, aciklama FROM parca_gecmis WHERE parca_sn = ? ORDER BY id DESC", conn, params=(secilen_sn,))
-                conn.close()
-                
-                if not df_gecmis.empty:
-                    for _, row in df_gecmis.iterrows():
-                        st.markdown(f"<small>🕒 <b>{row['tarih']}</b> — 📌 <b>{row['islem']}</b><br>💬 {row['aciklama']}</small>", unsafe_allow_html=True)
-                        st.markdown("<hr style='margin:2px 0;'>", unsafe_allow_html=True)
-                else:
-                    st.info("Geçmiş kaydı bulunmuyor.")
-        else:
-            st.info("Geçmiş için uygun SN yok.")
-
-    # 3. SEKME: YENİ KAYIT EKLE (OTOMATİK DOLDURMA ÖZELLİKLİ)
+    # 2. SEKME: YENİ KAYIT EKLE
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         
@@ -372,7 +346,7 @@ try:
                     st.success("Kayıt eklendi!")
                     st.rerun()
 
-    # 4. SEKME: GÜNLÜK NOTLAR
+    # 3. SEKME: GÜNLÜK NOTLAR
     with tab_notlar:
         kayitli_not_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         with st.form("not_form", clear_on_submit=True):
@@ -394,7 +368,7 @@ try:
         if not df_notlar.empty:
             st.dataframe(df_notlar, use_container_width=True, hide_index=True)
 
-    # 5. SEKME: LOGLAR
+    # 4. SEKME: LOGLAR
     with tab_loglar:
         conn = sqlite3.connect(DB_DOSYASI)
         df_loglar = pd.read_sql_query("SELECT * FROM islem_loglari ORDER BY id DESC", conn)
@@ -402,7 +376,54 @@ try:
         if not df_loglar.empty:
             st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
-    # 6. SEKME: YÖNETİM (EXCEL İHRACI VE İTHALİ)
+    # 5. SEKME: PARÇA GEÇMİŞİ (YÖNETİMİN HEMEN ÖNÜNDE)
+    with tab_gecmis:
+        st.subheader("Bölge Bazlı Parça ve İşlem Geçmişi")
+        
+        if not df_parcalar.empty and "bolge" in df_parcalar.columns:
+            benzersiz_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique()))
+            
+            if benzersiz_bolgeler:
+                secilen_gecmis_bolge = st.selectbox("İncelemek İçin Bölge Seçin", ["TÜM BÖLGELER"] + benzersiz_bolgeler)
+                
+                bolge_filtreli_df = df_parcalar.copy()
+                if secilen_gecmis_bolge != "TÜM BÖLGELER":
+                    bolge_filtreli_df = bolge_filtreli_df[bolge_filtreli_df["bolge"] == secilen_gecmis_bolge]
+                
+                for bolge_adi, bolge_grubu in bolge_filtreli_df.groupby("bolge"):
+                    with st.expander(f"📍 BÖLGE: {bolge_adi} ({len(bolge_grubu)} Parça)", expanded=(secilen_gecmis_bolge != "TÜM BÖLGELER")):
+                        for _, p_row in bolge_grubu.iterrows():
+                            p_ad = p_row.get("parca_adi", "-")
+                            p_sn = p_row.get("parca_sn", "-")
+                            s_ad = p_row.get("sistem_adi", "-")
+                            durum = p_row.get("durum", "-")
+                            
+                            st.markdown(f"**Sistem:** `{s_ad}` | **Parça:** `{p_ad}` | **SN:** `{p_sn}` | **Durum:** `{durum}`")
+                            
+                            d_adi = p_row.get("dosya_adi")
+                            if pd.notna(d_adi) and d_adi:
+                                d_yolu = os.path.join(UPLOAD_FOLDER, d_adi)
+                                if os.path.exists(d_yolu):
+                                    with open(d_yolu, "rb") as file_in:
+                                        st.download_button(f"📥 Belgeyi İndir ({p_sn})", data=file_in, file_name=d_adi, key=f"dl_gecmis_{p_row['id']}")
+
+                            conn = sqlite3.connect(DB_DOSYASI)
+                            df_p_gecmis = pd.read_sql_query("SELECT tarih, islem, aciklama FROM parca_gecmis WHERE parca_sn = ? ORDER BY id DESC", conn, params=(p_sn,))
+                            conn.close()
+                            
+                            if not df_p_gecmis.empty:
+                                for _, g_row in df_p_gecmis.iterrows():
+                                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🕒 <small>{g_row['tarih']} — 📌 **{g_row['islem']}** : {g_row['aciklama']}</small>", unsafe_allow_html=True)
+                            else:
+                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<small style='color:gray;'>Geçmiş işlem kaydı bulunmuyor.</small>", unsafe_allow_html=True)
+                                
+                            st.markdown("<hr style='margin:5px 0; border-top: 1px dashed #ddd;'>", unsafe_allow_html=True)
+            else:
+                st.info("Kayıtlı bölge bulunamadı.")
+        else:
+            st.info("Henüz hiç parça kaydı bulunmuyor.")
+
+    # 6. SEKME: YÖNETİM
     with tab_yonetim:
         st.subheader("Veri Yönetimi ve Raporlama")
         
@@ -432,7 +453,6 @@ try:
                         else:
                             df_gelen = pd.read_excel(yuklenen_excel)
                             
-                        # 'id' sütunu varsa çakışmayı önlemek için kaldıralım
                         if 'id' in df_gelen.columns:
                             df_gelen = df_gelen.drop(columns=['id'])
                             
@@ -441,7 +461,6 @@ try:
                         
                         eklenen_sayisi = 0
                         for _, row in df_gelen.iterrows():
-                            # Sütun isimlerini kontrol ederek güvenli veri çekme
                             b_bolge = tr_upper(row.get("bolge", ""))
                             b_sistem = tr_upper(row.get("sistem_adi", ""))
                             b_s_pn = tr_upper(row.get("sistem_pn", ""))
