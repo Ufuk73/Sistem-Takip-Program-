@@ -309,7 +309,6 @@ try:
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         
-        # Otomatik Doldurma İçin Önceden Tanımlı Değerleri Çekme Mekanizması
         secim_tipi = st.radio("Bölge Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True, key="form_secim_tipi")
         
         aktif_bolge = ""
@@ -318,7 +317,6 @@ try:
         else:
             aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
 
-        # Seçilen/Yazılan bölgeye ait daha önceden kayıtlı sistem bilgileri var mı bakalım
         varsayilan_sistem = ""
         varsayilan_s_pn = ""
         varsayilan_s_sn = ""
@@ -326,14 +324,12 @@ try:
         if aktif_bolge and not df_parcalar.empty and "bolge" in df_parcalar.columns:
             eslesen_kayitlar = df_parcalar[df_parcalar["bolge"].str.upper() == str(aktif_bolge).upper()]
             if not eslesen_kayitlar.empty:
-                # En son girilen veya eşleşen ilk kaydı baz alalım
                 son_kayit = eslesen_kayitlar.iloc[-1]
                 varsayilan_sistem = son_kayit.get("sistem_adi", "") if pd.notna(son_kayit.get("sistem_adi", "")) else ""
                 varsayilan_s_pn = son_kayit.get("sistem_pn", "") if pd.notna(son_kayit.get("sistem_pn", "")) else ""
                 varsayilan_s_sn = son_kayit.get("sistem_sn", "") if pd.notna(son_kayit.get("sistem_sn", "")) else ""
 
         with st.form("yeni_kayit_formu", clear_on_submit=True):
-            # Bölgeyi form içinde görünür kılmak için hidden ya da tekrar okunabilir tutuyoruz
             st.markdown(f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`")
             
             e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
@@ -343,8 +339,8 @@ try:
             
             e_parca = st.text_input("Parça Adı")
             c3, c4 = st.columns(2)
-            e_p_pn = c3.text_input("Parça PN")
-            e_p_sn = c4.text_input("Parça SN")
+            e_p_pn = c3.text_input("Parça PN", value="")
+            e_p_sn = c4.text_input("Parça SN", value="")
             
             e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"])
             e_tarih = st.text_input("Onarım Tarihi (GG.AA.YYYY)", value=datetime.datetime.now().strftime("%d.%m.%Y"))
@@ -406,13 +402,77 @@ try:
         if not df_loglar.empty:
             st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
-    # 6. SEKME: YÖNETİM
+    # 6. SEKME: YÖNETİM (EXCEL İHRACI VE İTHALİ)
     with tab_yonetim:
-        if not df_parcalar.empty:
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_parcalar.to_excel(writer, index=False, sheet_name='Veriler')
-            st.download_button("📥 Excel Raporu İndir", data=output.getvalue(), file_name="rapor.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.subheader("Veri Yönetimi ve Raporlama")
+        
+        col_yonetim1, col_yonetim2 = st.columns(2)
+        
+        with col_yonetim1:
+            st.markdown("##### 📤 Dışa Aktar")
+            st.markdown("Mevcut tüm parça listesini Excel formatında bilgisayarınıza indirebilirsiniz.")
+            if not df_parcalar.empty:
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_parcalar.to_excel(writer, index=False, sheet_name='Veriler')
+                st.download_button("📥 Excel Raporu İndir", data=output.getvalue(), file_name="sistem_takip_rapor.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            else:
+                st.info("Dışa aktarılacak kayıt bulunmuyor.")
+                
+        with col_yonetim2:
+            st.markdown("##### 📥 İçe Aktar (Excel / CSV)")
+            st.markdown("Daha önceden dışa aktardığınız veya sisteme uygun başlıklarla hazırladığınız excel/csv dosyasını yükleyin.")
+            
+            yuklenen_excel = st.file_uploader("Dosya Seç", type=["xlsx", "xls", "csv"], key="excel_ice_aktarim")
+            if yuklenen_excel is not None:
+                if st.button("Verileri Sisteme Aktar", type="primary"):
+                    try:
+                        if yuklenen_excel.name.endswith('.csv'):
+                            df_gelen = pd.read_csv(yuklenen_excel)
+                        else:
+                            df_gelen = pd.read_excel(yuklenen_excel)
+                            
+                        # 'id' sütunu varsa çakışmayı önlemek için kaldıralım
+                        if 'id' in df_gelen.columns:
+                            df_gelen = df_gelen.drop(columns=['id'])
+                            
+                        conn = sqlite3.connect(DB_DOSYASI)
+                        cursor = conn.cursor()
+                        
+                        eklenen_sayisi = 0
+                        for _, row in df_gelen.iterrows():
+                            # Sütun isimlerini kontrol ederek güvenli veri çekme
+                            b_bolge = tr_upper(row.get("bolge", ""))
+                            b_sistem = tr_upper(row.get("sistem_adi", ""))
+                            b_s_pn = tr_upper(row.get("sistem_pn", ""))
+                            b_s_sn = tr_upper(row.get("sistem_sn", ""))
+                            b_parca = tr_upper(row.get("parca_adi", ""))
+                            b_p_pn = tr_upper(row.get("parca_pn", ""))
+                            b_p_sn = tr_upper(row.get("parca_sn", ""))
+                            b_durum = str(row.get("durum", "FAAL"))
+                            b_tarih = str(row.get("onarim_tarih", ""))
+                            b_aciklama = tr_upper(row.get("aciklama", ""))
+                            b_dosya = row.get("dosya_adi", None)
+                            if pd.isna(b_dosya):
+                                b_dosya = None
+                                
+                            if b_bolge and b_sistem and b_parca:
+                                cursor.execute("""
+                                    INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (b_bolge, b_sistem, b_s_pn, b_s_sn, b_parca, b_p_pn, b_p_sn, b_durum, b_tarih, b_aciklama, b_dosya))
+                                
+                                cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
+                                               (b_p_sn, datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"EXCEL İÇE AKTARIM ({b_durum})", b_aciklama))
+                                eklenen_sayisi += 1
+                                
+                        conn.commit()
+                        conn.close()
+                        log_yaz("İÇE AKTARIM", f"Excelden {eklenen_sayisi} adet kayıt başarıyla aktarıldı.")
+                        st.success(f"Başarıyla {eklenen_sayisi} kayıt içe aktarıldı!")
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"Dosya içe aktarılırken hata oluştu: {ex}")
 
 except Exception as e:
     st.error("Bir hata oluştu:")
