@@ -135,11 +135,10 @@ try:
 
     st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
 
-    # Sekme Sıralaması: Takip, Yeni Kayıt, Notlar, Loglar, Parça Geçmişi (Yönetimin hemen önü), Yönetim
     tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
         "📋 Sistem Takip", 
         "➕ Yeni Kayıt", 
-        "📝 Notlar", 
+        "📝 Günlük Notlar", 
         "📜 Loglar", 
         "🔍 Parça Geçmişi",
         "⚙️ Yönetim"
@@ -192,7 +191,7 @@ try:
                     st.success("Kayıt güncellendi!")
                     st.rerun()
 
-    # 1. SEKME: TAKİP & FİLTRELEME (BÖLGE BÖLGE KAPALI / GRUPLANMIŞ LİSTE)
+    # 1. SEKME: TAKİP & FİLTRELEME
     with tab_takip:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -232,11 +231,24 @@ try:
                 
             st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
             
+            # --- YENİ EKLENEN ÖZELLİK: FİLTRELENEN LİSTEYİ DIŞA AKTAR ---
+            if not filt_df.empty:
+                col_exp1, col_exp2 = st.columns([8, 2])
+                with col_exp2:
+                    out_filt = io.BytesIO()
+                    with pd.ExcelWriter(out_filt, engine='openpyxl') as writer:
+                        filt_df.to_excel(writer, index=False, sheet_name='Filtrelenmis_Veriler')
+                    st.download_button(
+                        "📥 Filtreleneni İndir", 
+                        data=out_filt.getvalue(), 
+                        file_name=f"filtrelenmis_sistem_raporu_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx", 
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Yukarıda yaptığınız filtrelemeye uyan kayıtları Excel olarak indirir."
+                    )
+            
             if not filt_df.empty and "bolge" in filt_df.columns:
                 for b_adi, b_grubu in filt_df.groupby("bolge"):
-                    # expanded=False yapılarak tüm bölgeler varsayılan olarak kapalı başlatıldı
                     with st.expander(f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)", expanded=False):
-                        # Kompakt Başlık Satırı
                         h1, h2, h3, h4, h5 = st.columns([2.2, 2.2, 1.8, 0.9, 0.9])
                         h1.markdown("<small><b>SİSTEM ADI</b></small>", unsafe_allow_html=True)
                         h2.markdown("<small><b>PARÇA & SERİ NO</b></small>", unsafe_allow_html=True)
@@ -354,13 +366,13 @@ try:
             n_tarih = st.text_input("Tarih", value=datetime.datetime.now().strftime("%d.%m.%Y"))
             n_bolge = st.selectbox("Bölge", kayitli_not_bolgeler) if len(kayitli_not_bolgeler) > 0 else st.text_input("Bölge")
             n_detay = st.text_area("Not Detayı")
-            if st.form_submit_button("Not Ekle"):
+            if st.form_submit_button("Günlük Not Ekle"):
                 conn = sqlite3.connect(DB_DOSYASI)
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (?, ?, ?)", (n_tarih, tr_upper(n_bolge), tr_upper(n_detay)))
                 conn.commit()
                 conn.close()
-                st.success("Not eklendi!")
+                st.success("Günlük not eklendi!")
                 st.rerun()
                 
         conn = sqlite3.connect(DB_DOSYASI)
@@ -377,7 +389,7 @@ try:
         if not df_loglar.empty:
             st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
-    # 5. SEKME: PARÇA GEÇMİŞİ (YÖNETİMİN HEMEN ÖNÜNDE VE KAPALI BAŞLANGIÇLI)
+    # 5. SEKME: PARÇA GEÇMİŞİ
     with tab_gecmis:
         st.subheader("Bölge Bazlı Parça ve İşlem Geçmişi")
         
@@ -392,7 +404,6 @@ try:
                     bolge_filtreli_df = bolge_filtreli_df[bolge_filtreli_df["bolge"] == secilen_gecmis_bolge]
                 
                 for bolge_adi, bolge_grubu in bolge_filtreli_df.groupby("bolge"):
-                    # expanded=False yapılarak bu sekmedeki bölgeler de varsayılan kapalı yapıldı
                     with st.expander(f"📍 BÖLGE: {bolge_adi} ({len(bolge_grubu)} Parça)", expanded=False):
                         for _, p_row in bolge_grubu.iterrows():
                             p_ad = p_row.get("parca_adi", "-")
