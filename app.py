@@ -83,13 +83,21 @@ try:
 
     veritabanini_hazirla()
 
-    # --- ÜST MENÜ VE GÖRSEL ---
+    # --- ÜST MENÜ VE GÖRSEL KONTROLÜ ---
     col_logo, col_baslik = st.columns([1, 5])
     with col_logo:
-        if os.path.exists("ihtar1.jpg"):
-            st.image("ihtar1.jpg", use_container_width=True)
+        # Olası dosya adı varyasyonlarını kontrol et (büyük/küçükharf duyarlılığı için)
+        bulunan_gorsel = None
+        for aday in ["ihtar1.jpg", "Ihtar1.jpg", "İHTAR1.JPG", "ihtar1.JPG"]:
+            if os.path.exists(aday):
+                bulunan_gorsel = aday
+                break
+                
+        if bulunan_gorsel:
+            st.image(bulunan_gorsel, use_container_width=True)
         else:
-            st.markdown("⚠️ *ihtar1.jpg bulunamadı*")
+            st.info("Logo / Görsel Yüklenmedi")
+            
     with col_baslik:
         st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
         st.markdown("👤 **Rol:** `Admin`")
@@ -235,7 +243,7 @@ try:
                 
             st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
             
-            # --- NORMAL NOT FORMATINDA İNDİRME ÖZELLİĞİ ---
+            # --- NOT FORMATINDA İNDİRME ÖZELLİĞİ ---
             if not filt_df.empty:
                 col_exp1, col_exp2 = st.columns([7, 3])
                 with col_exp2:
@@ -251,9 +259,9 @@ try:
 
                     for idx, (_, row) in enumerate(filt_df.iterrows(), 1):
                         not_icerik += f"{idx}. Bölge: {row.get('bolge', '-')}\n"
-                        not_icerik   += f"   Sistem: {row.get('sistem_adi', '-')} (PN: {row.get('sistem_pn', '-')}, SN: {row.get('sistem_sn', '-')})\n"
-                        not_icerik   += f"   Parça : {row.get('parca_adi', '-')} (PN: {row.get('parca_pn', '-')}, SN: {row.get('parca_sn', '-')})\n"
-                        not_icerik   += f"   Durum : {row.get('durum', '-')} | Onarım Tar.: {row.get('onarim_tarih', '-')}\n"
+                        not_icerik += f"   Sistem: {row.get('sistem_adi', '-')} (PN: {row.get('sistem_pn', '-')}, SN: {row.get('sistem_sn', '-')})\n"
+                        not_icerik += f"   Parça : {row.get('parca_adi', '-')} (PN: {row.get('parca_pn', '-')}, SN: {row.get('parca_sn', '-')})\n"
+                        not_icerik += f"   Durum : {row.get('durum', '-')} | Onarım Tar.: {row.get('onarim_tarih', '-')}\n"
                         if pd.notna(row.get('aciklama')) and str(row.get('aciklama')).strip():
                             not_icerik += f"   Not   : {row.get('aciklama')}\n"
                         not_icerik += f"--------------------------------------------------\n"
