@@ -83,11 +83,15 @@ try:
 
     veritabanini_hazirla()
 
-    # --- ÜST MENÜ ---
-    header_col1, header_col2 = st.columns([8, 2])
-    with header_col1:
+    # --- ÜST MENÜ VE GÖRSEL ---
+    col_logo, col_baslik = st.columns([1, 5])
+    with col_logo:
+        if os.path.exists("ihtar1.jpg"):
+            st.image("ihtar1.jpg", use_container_width=True)
+        else:
+            st.markdown("⚠️ *ihtar1.jpg bulunamadı*")
+    with col_baslik:
         st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
-    with header_col2:
         st.markdown("👤 **Rol:** `Admin`")
 
     # Verileri Çek
@@ -235,7 +239,6 @@ try:
             if not filt_df.empty:
                 col_exp1, col_exp2 = st.columns([7, 3])
                 with col_exp2:
-                    # Sade ve Normal Not İçeriği Oluşturma
                     tarih_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
                     not_icerik = f"SİSTEM VE PARÇA LİSTESİ NOTU\n"
                     not_icerik += f"Tarih: {tarih_str}\n"
