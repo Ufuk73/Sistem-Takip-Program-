@@ -184,14 +184,14 @@ try:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)]
                 
-            # Tablo renklendirme fonksiyonu (Arka fonlar aynı, yazı renkleri daha okunaklı yapıldı)
+            # Tablo renklendirme fonksiyonu (İlk orijinal arka plan renkleri + koyu/okunabilir yazı renkleri)
             def durum_renklendir(val):
                 if val == "FAAL":
-                    return "background-color: #d4edda; color: #0b2e13; font-weight: 600;"  # Koyu yeşil yazı
+                    return "background-color: #d4edda; color: #155724; font-weight: 600;"
                 elif val == "ONARIMDA":
-                    return "background-color: #fff3cd; color: #533f03; font-weight: 600;"  # Koyu kahve/sarı yazı
+                    return "background-color: #fff3cd; color: #856404; font-weight: 600;"
                 elif val == "GAYRI FAAL":
-                    return "background-color: #f8d7da; color: #491217; font-weight: 600;"  # Koyu kırmızı yazı
+                    return "background-color: #f8d7da; color: #721c24; font-weight: 600;"
                 return ""
 
             if "durum" in filt_df.columns and not filt_df.empty:
