@@ -3,7 +3,7 @@ import traceback
 
 # Sayfa Yapılandırması en başta olmalı
 st.set_page_config(
-    page_title="Sistem dan Parça Takip Sistemi",
+    page_title="Sistem ve Parça Takip Sistemi",
     page_icon="⚙️",
     layout="wide"
 )
@@ -83,38 +83,12 @@ try:
 
     veritabanini_hazirla()
 
-    # --- KULLANICI GİRİŞ SİSTEMİ (AUTH) ---
-    if "giris_yapildi" not in st.session_state:
-        st.session_state["giris_yapildi"] = False
-        st.session_state["kullanici_rolu"] = "Teknisyen"
-
-    if not st.session_state["giris_yapildi"]:
-        st.title("🔐 Sistem ve Parça Takip - Oturum Aç")
-        with st.form("giris_formu"):
-            k_adi = st.text_input("Kullanıcı Adı")
-            k_sifre = st.text_input("Şifre", type="password")
-            rol_secimi = st.selectbox("Rol Seçin", ["Teknisyen", "Admin"])
-            giris_btn = st.form_submit_button("Giriş Yap")
-            
-            if giris_btn:
-                if (k_adi == "admin" and k_sifre == "1234") or (k_adi == "teknisyen" and k_sifre == "1234") or k_adi:
-                    st.session_state["giris_yapildi"] = True
-                    st.session_state["kullanici_rolu"] = "Admin" if k_adi == "admin" or rol_secimi == "Admin" else "Teknisyen"
-                    st.success("Giriş başarılı! Yükleniyor...")
-                    st.rerun()
-                else:
-                    st.error("Hatalı kullanıcı adı veya şifre!")
-        st.stop()
-
-    # --- ÜST MENÜ & OTURUM KAPATMA ---
+    # --- ÜST MENÜ ---
     header_col1, header_col2 = st.columns([8, 2])
     with header_col1:
         st.title("⚙️ Sistem ve Parça Takip Sistemi")
     with header_col2:
-        st.markdown(f"👤 **Rol:** `{st.session_state['kullanici_rolu']}`")
-        if st.button("Oturumu Kapat"):
-            st.session_state["giris_yapildi"] = False
-            st.rerun()
+        st.markdown("👤 **Rol:** `Admin (Tam Yetki)`")
 
     # Verileri Çek
     conn = sqlite3.connect(DB_DOSYASI)
@@ -141,7 +115,6 @@ try:
                     gecen_gun = (bugun - baslangic).days
                     if gecen_gun >= 30:
                         kritik += 1
-                        # Sistem adı yerine bölge adı eklendi
                         kritik_liste.append(f"• **Bölge: {row.get('bolge', 'Bölge Yok')}** ({row.get('parca_adi', 'Parça')} - SN: {row.get('parca_sn', '-')}) -> {gecen_gun} gündür onarımda!")
                 except ValueError:
                     pass
@@ -211,7 +184,20 @@ try:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)]
                 
-            st.dataframe(filt_df, use_container_width=True, hide_index=True)
+            # Tablo renklendirme fonksiyonu
+            def durum_renklendir(val):
+                if val == "FAAL":
+                    return "background-color: #d4edda; color: #155724;"  # Açık Yeşil
+                elif val == "ONARIMDA":
+                    return "background-color: #fff3cd; color: #856404;"  # Açık Sarı
+                elif val == "GAYRI FAAL":
+                    return "background-color: #f8d7da; color: #721c24;"  # Açık Kırmızı
+                return ""
+
+            if "durum" in filt_df.columns and not filt_df.empty:
+                st.dataframe(filt_df.style.applymap(durum_renklendir, subset=["durum"]), use_container_width=True, hide_index=True)
+            else:
+                st.dataframe(filt_df, use_container_width=True, hide_index=True)
             
             st.markdown("### Kayıt Düzenle veya Sil")
             secili_id = st.selectbox("İşlem Yapılacak Kayıt ID Seç", [None] + list(filt_df["id"].values))
@@ -256,17 +242,14 @@ try:
                         st.rerun()
                         
                     if sil_basildi:
-                        if st.session_state["kullanici_rolu"] != "Admin":
-                            st.warning("Kayıt silmek için Admin yetkisine sahip olmalısınız!")
-                        else:
-                            conn = sqlite3.connect(DB_DOSYASI)
-                            cursor = conn.cursor()
-                            cursor.execute("DELETE FROM parcalar WHERE id=?", (secili_id,))
-                            conn.commit()
-                            conn.close()
-                            log_yaz("SİLME", f"ID {secili_id} silindi.")
-                            st.success("Kayıt silindi!")
-                            st.rerun()
+                        conn = sqlite3.connect(DB_DOSYASI)
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM parcalar WHERE id=?", (secili_id,))
+                        conn.commit()
+                        conn.close()
+                        log_yaz("SİLME", f"ID {secili_id} silindi.")
+                        st.success("Kayıt silindi!")
+                        st.rerun()
         else:
             st.info("Henüz kayıt bulunmuyor.")
 
