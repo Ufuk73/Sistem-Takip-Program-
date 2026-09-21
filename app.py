@@ -5,7 +5,6 @@ import datetime
 import pandas as pd
 import os
 import io
-import plotly.express as px
 
 # Sayfa Yapılandırması
 st.set_page_config(
@@ -174,8 +173,7 @@ try:
 
     st.markdown("<hr style='margin:15px 0 10px 0; border-color: #333333;'>", unsafe_allow_html=True)
 
-    tab_dashboard, tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
-        "📊 Dashboard & Raporlar",
+    tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
         "📋 Sistem Takip", 
         "➕ Yeni Kayıt", 
         "📝 Günlük Notlar", 
@@ -211,7 +209,7 @@ try:
                 d_idx = d_list.index(mevcut_d) if mevcut_d in d_list else 0
                 e_durum = st.selectbox("Durum", d_list, index=d_idx)
                 
-                # GELİŞMİŞ TARİH BİLEŞENİ
+                # --- GELİŞMİŞ TARİH BİLEŞENİ ---
                 varsayilan_tarih = str_to_date(row.get("onarim_tarih"))
                 e_tarih_obj = st.date_input("Onarım Tarihi", value=varsayilan_tarih, format="DD.MM.YYYY")
                 e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
@@ -247,127 +245,6 @@ try:
             st.rerun()
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
-
-    # --- 0. SEKME: GÖRSEL DASHBOARD & RAPORLAR ---
-    with tab_dashboard:
-        st.subheader("📊 Sistem ve Parça Analiz Görselleri")
-        
-        if df_parcalar.empty:
-            st.info("Görsel analizleri görüntülemek için veritabanında en az bir kayıt olmalıdır.")
-        else:
-            renk_haritasi = {
-                "FAAL": "#2ecc71",
-                "YEDEK PARÇA": "#3498db",
-                "ONARIMDA": "#f1c40f",
-                "GAYRI FAAL": "#e74c3c"
-            }
-            
-            g_col1, g_col2 = st.columns(2)
-            
-            with g_col1:
-                # 1. Genel Durum Dağılımı (Pie Chart)
-                df_durum_sayi = df_parcalar["durum"].value_counts().reset_index()
-                df_durum_sayi.columns = ["Durum", "Adet"]
-                
-                fig_durum = px.pie(
-                    df_durum_sayi, 
-                    values="Adet", 
-                    names="Durum", 
-                    title="<b>Parça Durum Dağılımı</b>",
-                    hole=0.4,
-                    color="Durum",
-                    color_discrete_map=renk_haritasi
-                )
-                fig_durum.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color="#e0e0e0"),
-                    margin=dict(l=20, r=20, t=40, b=20)
-                )
-                st.plotly_chart(fig_durum, use_container_width=True)
-
-            with g_col2:
-                # 2. Bölge Bazlı Durum Dağılımı (Bar Chart)
-                df_bolge_durum = df_parcalar.groupby(["bolge", "durum"]).size().reset_index(name="Adet")
-                
-                fig_bolge = px.bar(
-                    df_bolge_durum, 
-                    x="bolge", 
-                    y="Adet", 
-                    color="durum", 
-                    title="<b>Bölge Bazlı Parça Durumları</b>",
-                    barmode="group",
-                    color_discrete_map=renk_haritasi,
-                    labels={"bolge": "Bölge", "Adet": "Parça Sayısı", "durum": "Durum"}
-                )
-                fig_bolge.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color="#e0e0e0"),
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(gridcolor="#333333"),
-                    margin=dict(l=20, r=20, t=40, b=20)
-                )
-                st.plotly_chart(fig_bolge, use_container_width=True)
-
-            st.markdown("<hr style='margin:10px 0; border-color: #333;'>", unsafe_allow_html=True)
-            
-            g_col3, g_col4 = st.columns(2)
-            
-            with g_col3:
-                # 3. En Çok Kullanılan / Arızalanan Parça Tipleri (Top 10)
-                df_top_parca = df_parcalar["parca_adi"].value_counts().head(10).reset_index()
-                df_top_parca.columns = ["Parça Adı", "Adet"]
-                
-                fig_top = px.bar(
-                    df_top_parca,
-                    x="Adet",
-                    y="Parça Adı",
-                    orientation="h",
-                    title="<b>En Sık Takip Edilen Parçalar (Top 10)</b>",
-                    color="Adet",
-                    color_continuous_scale="Blues"
-                )
-                fig_top.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color="#e0e0e0"),
-                    yaxis=dict(autorange="reversed"),
-                    margin=dict(l=20, r=20, t=40, b=20)
-                )
-                st.plotly_chart(fig_top, use_container_width=True)
-
-            with g_col4:
-                # 4. Onarımda Geçen Süre Analizi
-                df_onarimda = df_parcalar[df_parcalar["durum"] == "ONARIMDA"].copy()
-                if not df_onarimda.empty and "onarim_tarih" in df_onarimda.columns:
-                    bugun = datetime.date.today()
-                    df_onarimda["Gecen_Gun"] = df_onarimda["onarim_tarih"].apply(
-                        lambda x: (bugun - str_to_date(x)).days if x else 0
-                    )
-                    df_onarimda["Etiket"] = df_onarimda["bolge"] + " - " + df_onarimda["parca_adi"] + " (" + df_onarimda["parca_sn"] + ")"
-                    df_onarimda = df_onarimda.sort_values(by="Gecen_Gun", ascending=False).head(10)
-                    
-                    fig_gecen = px.bar(
-                        df_onarimda,
-                        x="Gecen_Gun",
-                        y="Etiket",
-                        orientation="h",
-                        title="<b>Onarımda En Uzun Bekleyen Parçalar (Gün)</b>",
-                        labels={"Gecen_Gun": "Geçen Gün", "Etiket": "Bölge & Parça"},
-                        color="Gecen_Gun",
-                        color_continuous_scale="Reds"
-                    )
-                    fig_gecen.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color="#e0e0e0"),
-                        yaxis=dict(autorange="reversed"),
-                        margin=dict(l=20, r=20, t=40, b=20)
-                    )
-                    st.plotly_chart(fig_gecen, use_container_width=True)
-                else:
-                    st.success("🟢 Şu anda onarımda bekleyen parça bulunmuyor.")
 
     # 1. SEKME: TAKİP & FİLTRELEME
     with tab_takip:
@@ -518,7 +395,7 @@ try:
             
             e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"])
             
-            # GELİŞMİŞ TARİH BİLEŞENİ
+            # --- GELİŞMİŞ TARİH BİLEŞENİ ---
             e_tarih_obj = st.date_input("Onarım Tarihi", value=datetime.date.today(), format="DD.MM.YYYY")
             e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
             
