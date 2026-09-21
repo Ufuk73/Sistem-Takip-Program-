@@ -8,6 +8,35 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- ÖZEL CSS STİLLERİ (Orijinal Arka Plan ve Renkli Yazılar İçin) ---
+st.markdown("""
+    <style>
+    /* Ana Arka Planı Orijinal Açık Tone Sabitleme */
+    .stApp {
+        background-color: #FFFFFF !important;
+        color: #111111 !important;
+    }
+    
+    /* Tüm Yazıların, Başlıkların ve Metinlerin Net ve Renkli Görünmesi */
+    h1, h2, h3, h4, h5, h6, span, p, label, .stMarkdown {
+        color: #1F2937 !important;
+    }
+    
+    /* Metin Kutuları ve Giriş Alanları */
+    .stTextInput input, .stTextArea textarea, .stSelectbox select {
+        background-color: #F9FAFB !important;
+        color: #1F2937 !important;
+        border-color: #D1D5DB !important;
+    }
+    
+    /* Sekme Başlıkları Yazı Rengi */
+    .stTabs [data-baseweb="tab"] p {
+        color: #374151 !important;
+        font-weight: 600 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 try:
     import sqlite3
     import datetime
@@ -184,7 +213,6 @@ try:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)]
                 
-            # Tablo renklendirme fonksiyonu (İlk orijinal arka plan renkleri + koyu/okunabilir yazı renkleri)
             def durum_renklendir(val):
                 if val == "FAAL":
                     return "background-color: #d4edda; color: #155724; font-weight: 600;"
