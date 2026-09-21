@@ -85,7 +85,6 @@ try:
 
     # --- ÜST BAŞLIK ---
     st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
-    st.markdown("👤 **Rol:** `Admin`")
 
     # Verileri Çek
     conn = sqlite3.connect(DB_DOSYASI)
@@ -122,15 +121,49 @@ try:
             for k_bilgi in kritik_liste:
                 st.markdown(k_bilgi)
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("Toplam", toplam)
-    col2.metric("Faal", faal)
-    col3.metric("Yedek", yedek)
-    col4.metric("Onarımda", onarimda)
-    col5.metric("Kritik (30+)", kritik, delta_color="inverse" if kritik > 0 else "off")
-    col6.metric("Gayri Faal", gayri)
+    # --- ÇERÇEVELİ (KART) GÖRÜNÜM İÇİN ÖZEL CSS ---
+    st.markdown("""
+    <style>
+    .metric-card {
+        background-color: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 12px 15px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .metric-title {
+        font-size: 13px;
+        color: #6c757d;
+        font-weight: 600;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+    }
+    .metric-value {
+        font-size: 22px;
+        color: #333333;
+        font-weight: 700;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
+    # Metrikleri Çerçeveli Sütunlar Halinde Yerleştirme
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    
+    with c1:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Toplam</div><div class="metric-value">{toplam}</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Faal</div><div class="metric-value" style="color: #28a745;">{faal}</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Yedek</div><div class="metric-value" style="color: #17a2b8;">{yedek}</div></div>', unsafe_allow_html=True)
+    with c4:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Onarımda</div><div class="metric-value" style="color: #ffc107;">{onarimda}</div></div>', unsafe_allow_html=True)
+    with c5:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Kritik (30+)</div><div class="metric-value" style="color: #dc3545;">{kritik}</div></div>', unsafe_allow_html=True)
+    with c6:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Gayri Faal</div><div class="metric-value" style="color: #343a40;">{gayri}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<hr style='margin:15px 0 10px 0;'>", unsafe_allow_html=True)
 
     tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
         "📋 Sistem Takip", 
