@@ -3,7 +3,7 @@ import traceback
 
 # Sayfa Yapılandırması en başta olmalı
 st.set_page_config(
-    page_title="Sistem ve Parça Takip Sistemi",
+    page_title="Sistem dan Parça Takip Sistemi",
     page_icon="⚙️",
     layout="wide"
 )
@@ -141,7 +141,8 @@ try:
                     gecen_gun = (bugun - baslangic).days
                     if gecen_gun >= 30:
                         kritik += 1
-                        kritik_liste.append(f"• **{row.get('sistem_adi', 'Sistem')}** ({row.get('parca_adi', 'Parça')} - SN: {row.get('parca_sn', '-')}) -> {gecen_gun} gündür onarımda!")
+                        # Sistem adı yerine bölge adı eklendi
+                        kritik_liste.append(f"• **Bölge: {row.get('bolge', 'Bölge Yok')}** ({row.get('parca_adi', 'Parça')} - SN: {row.get('parca_sn', '-')}) -> {gecen_gun} gündür onarımda!")
                 except ValueError:
                     pass
 
