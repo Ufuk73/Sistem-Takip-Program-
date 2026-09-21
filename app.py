@@ -231,19 +231,47 @@ try:
                 
             st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
             
-            # --- YENİ EKLENEN ÖZELLİK: FİLTRELENEN LİSTEYİ DIŞA AKTAR ---
+            # --- YENİ EKLENEN ÖZELLİK: FİLTRELENEN LİSTEYİ RESMİ NOT OLARAK İNDİR ---
             if not filt_df.empty:
-                col_exp1, col_exp2 = st.columns([8, 2])
+                col_exp1, col_exp2 = st.columns([7, 3])
                 with col_exp2:
-                    out_filt = io.BytesIO()
-                    with pd.ExcelWriter(out_filt, engine='openpyxl') as writer:
-                        filt_df.to_excel(writer, index=False, sheet_name='Filtrelenmis_Veriler')
+                    # Resmi Not/Rapor Metnini Oluştur
+                    tarih_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+                    resmi_not_icerik = "=" * 70 + "\n"
+                    resmi_not_icerik += " T.C. \n"
+                    resmi_not_icerik += " SİSTEM VE PARÇA TAKİP BİRİMİ \n"
+                    resmi_not_icerik += f" RAPOR / BİLGİ NOTU TARİHİ: {tarih_str} \n"
+                    resmi_not_icerik += "=" * 70 + "\n\n"
+                    resmi_not_icerik += f"Uygulanan Filtreler:\n"
+                    resmi_not_icerik += f" - Bölge : {f_bolge}\n"
+                    resmi_not_icerik += f" - Parça : {f_parca}\n"
+                    resmi_not_icerik += f" - Durum : {f_durum}\n"
+                    if f_arama:
+                        resmi_not_icerik += f" - Arama Kriteri: {f_arama}\n"
+                    resmi_not_icerik += f" Toplam Kayıt Sayısı: {len(filt_df)}\n\n"
+                    resmi_not_icerik += "-" * 70 + "\n"
+                    resmi_not_icerik += " DETAYLI KAYIT LİSTESİ:\n"
+                    resmi_not_icerik += "-" * 70 + "\n\n"
+
+                    for idx, (_, row) in enumerate(filt_df.iterrows(), 1):
+                        resmi_not_icerik += f"{idx}. BÖLGE: {row.get('bolge', '-')}\n"
+                        resmi_not_icerik += f"   Sistem Adı  : {row.get('sistem_adi', '-')} (PN: {row.get('sistem_pn', '-')}, SN: {row.get('sistem_sn', '-')})\n"
+                        resmi_not_icerik += f"   Parça Adı   : {row.get('parca_adi', '-')} (PN: {row.get('parca_pn', '-')}, SN: {row.get('parca_sn', '-')})\n"
+                        resmi_not_icerik += f"   Durum       : {row.get('durum', '-')}\n"
+                        resmi_not_icerik += f"   Onarım Tar. : {row.get('onarim_tarih', '-')}\n"
+                        if pd.notna(row.get('aciklama')) and str(row.get('aciklama')).strip():
+                            resmi_not_icerik += f"   Açıklama    : {row.get('aciklama')}\n"
+                        resmi_not_icerik += "-" * 50 + "\n"
+
+                    resmi_not_icerik += "\n\nİşbu rapor yukarıdaki filtreleme kriterlerine dayanarak elektronik ortamda üretilmiştir.\n"
+                    resmi_not_icerik += "Raporu Düzenleyen / Kontrol Eden: Sistem Yöneticisi (Admin)\n"
+
                     st.download_button(
-                        "📥 Filtreleneni İndir", 
-                        data=out_filt.getvalue(), 
-                        file_name=f"filtrelenmis_sistem_raporu_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx", 
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        help="Yukarıda yaptığınız filtrelemeye uyan kayıtları Excel olarak indirir."
+                        "📄 Resmi Not Olarak İndir", 
+                        data=resmi_not_icerik.encode('utf-8'), 
+                        file_name=f"resmi_sistem_notu_{datetime.date.today().strftime('%d_%m_%Y')}.txt", 
+                        mime="text/plain",
+                        help="Filtrelenen listeyi kurumsal/resmi tutanak ve bilgi notu formatında indirir."
                     )
             
             if not filt_df.empty and "bolge" in filt_df.columns:
