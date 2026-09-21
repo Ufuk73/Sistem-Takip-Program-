@@ -193,12 +193,19 @@ try:
                     return "background-color: #f8d7da; color: #721c24; font-weight: 600;"
                 return ""
 
-            if "durum" in filt_df.columns and not filt_df.empty:
-                st.dataframe(filt_df.style.map(durum_renklendir, subset=["durum"]), use_container_width=True, hide_index=True)
+            # Tablodan dosya_adi sütununu gizle, yerine kullanıcı dostu sütun ekle
+            gosterim_df = filt_df.copy()
+            if "dosya_adi" in gosterim_df.columns:
+                gosterim_df = gosterim_df.drop(columns=["dosya_adi"])
+            gosterim_df["İşlem"] = "Düzenle veya Sil"
+
+            if "durum" in gosterim_df.columns and not gosterim_df.empty:
+                st.dataframe(gosterim_df.style.map(durum_renklendir, subset=["durum"]), use_container_width=True, hide_index=True)
             else:
-                st.dataframe(filt_df, use_container_width=True, hide_index=True)
+                st.dataframe(gosterim_df, use_container_width=True, hide_index=True)
             
-            st.markdown("### Kayıt Düzenle veya Sil")
+            st.markdown("---")
+            st.markdown("### Kayıt Güncelleme / Düzenleme Alanı")
             secili_id = st.selectbox("İşlem Yapılacak Kayıt ID Seç", [None] + list(filt_df["id"].values))
             
             if secili_id:
@@ -291,8 +298,18 @@ try:
     # 3. SEKME: YENİ KAYIT EKLE
     with tab_ekle:
         st.subheader("Yeni Sistem / Parça Kaydı Ekle")
+        
+        # Daha önce girilmiş bölgeleri çek
+        kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
+        
         with st.form("yeni_kayit_formu", clear_on_submit=True):
-            e_bolge = st.text_input("Bölüm / Bölge")
+            # Bölge seçimi için hem eski kayıtlar arasından seçme hem de manuel ekleme opsiyonu
+            secim_tipi = st.radio("Bölge Giriş Yöntemi", ["Kayıtlı Bölgelerden Seç", "Yeni Bölge Yaz"], horizontal=True)
+            if secim_tipi == "Kayıtlı Bölgelerden Seç" and len(kayitli_bolgeler) > 0:
+                e_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler)
+            else:
+                e_bolge = st.text_input("Yeni Bölge Adı Yazın")
+
             e_sistem = st.text_input("Sistem Adı")
             e_s_pn = st.text_input("Sistem Parça Numarası (PN)")
             e_s_sn = st.text_input("Sistem Seri Numarası (SN)")
@@ -336,9 +353,16 @@ try:
     # 4. SEKME: GÜNLÜK NOTLAR
     with tab_notlar:
         st.subheader("Günlük İş Notları ve Arşiv")
+        
+        kayitli_not_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
+        
         with st.form("not_form", clear_on_submit=True):
             n_tarih = st.text_input("Tarih", value=datetime.datetime.now().strftime("%d.%m.%Y"))
-            n_bolge = st.text_input("Bölge / Konum")
+            if len(kayitli_not_bolgeler) > 0:
+                n_bolge = st.selectbox("Bölge / Konum Seç", kayitli_not_bolgeler)
+            else:
+                n_bolge = st.text_input("Bölge / Konum")
+                
             n_detay = st.text_area("İş / Not Detayı")
             not_kaydet = st.form_submit_button("Notu Ekle")
             
