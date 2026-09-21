@@ -1,5 +1,10 @@
 import streamlit as st
 import traceback
+import sqlite3
+import datetime
+import pandas as pd
+import os
+import io
 
 # Sayfa Yapılandırması
 st.set_page_config(
@@ -9,12 +14,6 @@ st.set_page_config(
 )
 
 try:
-    import sqlite3
-    import datetime
-    import pandas as pd
-    import os
-    import io
-
     DB_DOSYASI = "sistem_takip.db"
     UPLOAD_FOLDER = "yuklenen_dosyalar"
     
@@ -36,48 +35,51 @@ try:
             .upper()
         )
 
-    # --- VERİTABANI BAŞLATMA VE MIGRATION ---
+    # --- TARİH DÖNÜŞÜM YARDIMCILARI ---
+    def str_to_date(tarih_str):
+        if not tarih_str or pd.isna(tarih_str):
+            return datetime.date.today()
+        try:
+            return datetime.datetime.strptime(str(tarih_str).strip(), "%d.%m.%Y").date()
+        except ValueError:
+            return datetime.date.today()
+
+    # --- VERİTABANI BAŞLATMA VE MIGRATION (WITH BAĞLANTI YÖNETİMİ) ---
     def veritabanini_hazirla():
-        conn = sqlite3.connect(DB_DOSYASI)
-        cursor = conn.cursor()
-        
-        cursor.execute("CREATE TABLE IF NOT EXISTS parcalar (id INTEGER PRIMARY KEY AUTOINCREMENT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS islem_loglari (id INTEGER PRIMARY KEY AUTOINCREMENT, zaman TEXT, islem_turu TEXT, detay TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS gunluk_notlar (id INTEGER PRIMARY KEY AUTOINCREMENT, tarih TEXT, bolge TEXT, detay TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS parca_gecmis (id INTEGER PRIMARY KEY AUTOINCREMENT, parca_sn TEXT, tarih TEXT, islem TEXT, aciklama TEXT)")
-        
-        beklenen_kolonlar = {
-            "bolge": "TEXT",
-            "sistem_adi": "TEXT",
-            "sistem_pn": "TEXT",
-            "sistem_sn": "TEXT",
-            "parca_adi": "TEXT",
-            "parca_pn": "TEXT",
-            "parca_sn": "TEXT",
-            "durum": "TEXT",
-            "onarim_tarih": "TEXT",
-            "aciklama": "TEXT",
-            "dosya_adi": "TEXT"
-        }
-        
-        cursor.execute("PRAGMA table_info(parcalar)")
-        mevcut_kolonlar = [kol[1] for kol in cursor.fetchall()]
-        
-        for kolon_adi, kolon_tipi in beklenen_kolonlar.items():
-            if kolon_adi not in mevcut_kolonlar:
-                cursor.execute(f"ALTER TABLE parcalar ADD COLUMN {kolon_adi} {kolon_tipi}")
+        with sqlite3.connect(DB_DOSYASI) as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS parcalar (id INTEGER PRIMARY KEY AUTOINCREMENT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS islem_loglari (id INTEGER PRIMARY KEY AUTOINCREMENT, zaman TEXT, islem_turu TEXT, detay TEXT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS gunluk_notlar (id INTEGER PRIMARY KEY AUTOINCREMENT, tarih TEXT, bolge TEXT, detay TEXT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS parca_gecmis (id INTEGER PRIMARY KEY AUTOINCREMENT, parca_sn TEXT, tarih TEXT, islem TEXT, aciklama TEXT)")
             
-        conn.commit()
-        conn.close()
+            beklenen_kolonlar = {
+                "bolge": "TEXT",
+                "sistem_adi": "TEXT",
+                "sistem_pn": "TEXT",
+                "sistem_sn": "TEXT",
+                "parca_adi": "TEXT",
+                "parca_pn": "TEXT",
+                "parca_sn": "TEXT",
+                "durum": "TEXT",
+                "onarim_tarih": "TEXT",
+                "aciklama": "TEXT",
+                "dosya_adi": "TEXT"
+            }
+            
+            cursor.execute("PRAGMA table_info(parcalar)")
+            mevcut_kolonlar = [kol[1] for kol in cursor.fetchall()]
+            
+            for kolon_adi, kolon_tipi in beklenen_kolonlar.items():
+                if kolon_adi not in mevcut_kolonlar:
+                    cursor.execute(f"ALTER TABLE parcalar ADD COLUMN {kolon_adi} {kolon_tipi}")
 
     def log_yaz(islem_turu, detay):
         try:
             zaman = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-            conn = sqlite3.connect(DB_DOSYASI)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO islem_loglari (zaman, islem_turu, detay) VALUES (?, ?, ?)", (zaman, islem_turu, detay))
-            conn.commit()
-            conn.close()
+            with sqlite3.connect(DB_DOSYASI) as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO islem_loglari (zaman, islem_turu, detay) VALUES (?, ?, ?)", (zaman, islem_turu, detay))
         except Exception as e:
             print(f"Log yazılamadı: {e}")
 
@@ -120,9 +122,8 @@ try:
     st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
 
     # Verileri Çek
-    conn = sqlite3.connect(DB_DOSYASI)
-    df_parcalar = pd.read_sql_query("SELECT * FROM parcalar", conn)
-    conn.close()
+    with sqlite3.connect(DB_DOSYASI) as conn:
+        df_parcalar = pd.read_sql_query("SELECT * FROM parcalar", conn)
 
     # İstatistik Hesaplama
     toplam = len(df_parcalar)
@@ -184,9 +185,8 @@ try:
     # Dialog (Açılır Pencere) ile Düzenleme Fonksiyonu
     @st.dialog("Kayıt Düzenle", width="large")
     def duzenle_dialog(r_id):
-        conn = sqlite3.connect(DB_DOSYASI)
-        df_tekil = pd.read_sql_query("SELECT * FROM parcalar WHERE id = ?", conn, params=(r_id,))
-        conn.close()
+        with sqlite3.connect(DB_DOSYASI) as conn:
+            df_tekil = pd.read_sql_query("SELECT * FROM parcalar WHERE id = ?", conn, params=(r_id,))
         
         if not df_tekil.empty:
             row = df_tekil.iloc[0]
@@ -209,24 +209,42 @@ try:
                 d_idx = d_list.index(mevcut_d) if mevcut_d in d_list else 0
                 e_durum = st.selectbox("Durum", d_list, index=d_idx)
                 
-                e_tarih = st.text_input("Onarım Tarihi (GG.AA.YYYY)", value=row.get("onarim_tarih", "") if pd.notna(row.get("onarim_tarih", "")) else "")
+                # --- GELİŞMİŞ TARİH BİLEŞENİ ---
+                varsayilan_tarih = str_to_date(row.get("onarim_tarih"))
+                e_tarih_obj = st.date_input("Onarım Tarihi", value=varsayilan_tarih, format="DD.MM.YYYY")
+                e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
+                
                 e_aciklama = st.text_area("Açıklama / Not", value=row.get("aciklama", "") if pd.notna(row.get("aciklama", "")) else "")
                 
                 if st.form_submit_button("Güncellemeyi Kaydet", type="primary"):
-                    conn = sqlite3.connect(DB_DOSYASI)
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE parcalar SET bolge=?, sistem_adi=?, sistem_pn=?, sistem_sn=?, parca_adi=?, parca_pn=?, parca_sn=?, durum=?, onarim_tarih=?, aciklama=?
-                        WHERE id=?
-                    """, (tr_upper(e_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih, tr_upper(e_aciklama), r_id))
+                    with sqlite3.connect(DB_DOSYASI) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE parcalar SET bolge=?, sistem_adi=?, sistem_pn=?, sistem_sn=?, parca_adi=?, parca_pn=?, parca_sn=?, durum=?, onarim_tarih=?, aciklama=?
+                            WHERE id=?
+                        """, (tr_upper(e_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih_str, tr_upper(e_aciklama), r_id))
+                        
+                        cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
+                                       (tr_upper(e_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"GÜNCELLEME ({e_durum})", tr_upper(e_aciklama)))
                     
-                    cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
-                                   (tr_upper(e_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"GÜNCELLEME ({e_durum})", tr_upper(e_aciklama)))
-                    conn.commit()
-                    conn.close()
                     log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
                     st.success("Kayıt güncellendi!")
                     st.rerun()
+
+    # Silme Onay Dialogu
+    @st.dialog("Silme Onayı")
+    def sil_onay_dialog(r_id, parca_adi, parca_sn):
+        st.warning(f"**{parca_adi}** (SN: `{parca_sn}`) kaydını silmek istediğinizden emin misiniz?")
+        col_s1, col_s2 = st.columns(2)
+        if col_s1.button("Evet, Sil", type="primary", use_container_width=True):
+            with sqlite3.connect(DB_DOSYASI) as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
+            log_yaz("SİLME", f"ID {r_id} ({parca_adi}) silindi.")
+            st.success("Kayıt başarıyla silindi.")
+            st.rerun()
+        if col_s2.button("İptal", use_container_width=True):
+            st.rerun()
 
     # 1. SEKME: TAKİP & FİLTRELEME
     with tab_takip:
@@ -330,14 +348,7 @@ try:
                                     
                             with c5:
                                 if st.button("🗑️", key=f"del_{r_id}", help="Sil"):
-                                    conn = sqlite3.connect(DB_DOSYASI)
-                                    cursor = conn.cursor()
-                                    cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
-                                    conn.commit()
-                                    conn.close()
-                                    log_yaz("SİLME", f"ID {r_id} silindi.")
-                                    st.success("Silindi!")
-                                    st.rerun()
+                                    sil_onay_dialog(r_id, row.get("parca_adi", "Parça"), row.get("parca_sn", "-"))
 
                             st.markdown("<hr style='margin:3px 0; border-color: #333;'>", unsafe_allow_html=True)
             else:
@@ -383,7 +394,11 @@ try:
             e_p_sn = c4.text_input("Parça SN", value="")
             
             e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"])
-            e_tarih = st.text_input("Onarım Tarihi (GG.AA.YYYY)", value=datetime.datetime.now().strftime("%d.%m.%Y"))
+            
+            # --- GELİŞMİŞ TARİH BİLEŞENİ ---
+            e_tarih_obj = st.date_input("Onarım Tarihi", value=datetime.date.today(), format="DD.MM.YYYY")
+            e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
+            
             e_aciklama = st.text_area("Açıklama")
             yuklenen_dosya_form = st.file_uploader("Belge/Fotoğraf", type=["png", "jpg", "jpeg", "pdf"])
             
@@ -397,17 +412,16 @@ try:
                         with open(os.path.join(UPLOAD_FOLDER, dosya_ismi), "wb") as f:
                             f.write(yuklenen_dosya_form.getbuffer())
 
-                    conn = sqlite3.connect(DB_DOSYASI)
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (tr_upper(aktif_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih, tr_upper(e_aciklama), dosya_ismi))
+                    with sqlite3.connect(DB_DOSYASI) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (tr_upper(aktif_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih_str, tr_upper(e_aciklama), dosya_ismi))
+                        
+                        cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
+                                       (tr_upper(e_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"İLK KAYIT ({e_durum})", tr_upper(e_aciklama)))
                     
-                    cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
-                                   (tr_upper(e_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"İLK KAYIT ({e_durum})", tr_upper(e_aciklama)))
-                    conn.commit()
-                    conn.close()
                     log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
                     st.success("Kayıt eklendi!")
                     st.rerun()
@@ -416,29 +430,26 @@ try:
     with tab_notlar:
         kayitli_not_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         with st.form("not_form", clear_on_submit=True):
-            n_tarih = st.text_input("Tarih", value=datetime.datetime.now().strftime("%d.%m.%Y"))
+            n_tarih_obj = st.date_input("Tarih", value=datetime.date.today(), format="DD.MM.YYYY")
+            n_tarih_str = n_tarih_obj.strftime("%d.%m.%Y")
             n_bolge = st.selectbox("Bölge", kayitli_not_bolgeler) if len(kayitli_not_bolgeler) > 0 else st.text_input("Bölge")
             n_detay = st.text_area("Not Detayı")
             if st.form_submit_button("Günlük Not Ekle"):
-                conn = sqlite3.connect(DB_DOSYASI)
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (?, ?, ?)", (n_tarih, tr_upper(n_bolge), tr_upper(n_detay)))
-                conn.commit()
-                conn.close()
+                with sqlite3.connect(DB_DOSYASI) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (?, ?, ?)", (n_tarih_str, tr_upper(n_bolge), tr_upper(n_detay)))
                 st.success("Günlük not eklendi!")
                 st.rerun()
                 
-        conn = sqlite3.connect(DB_DOSYASI)
-        df_notlar = pd.read_sql_query("SELECT * FROM gunluk_notlar ORDER BY id DESC", conn)
-        conn.close()
+        with sqlite3.connect(DB_DOSYASI) as conn:
+            df_notlar = pd.read_sql_query("SELECT * FROM gunluk_notlar ORDER BY id DESC", conn)
         if not df_notlar.empty:
             st.dataframe(df_notlar, use_container_width=True, hide_index=True)
 
     # 4. SEKME: LOGLAR
     with tab_loglar:
-        conn = sqlite3.connect(DB_DOSYASI)
-        df_loglar = pd.read_sql_query("SELECT * FROM islem_loglari ORDER BY id DESC", conn)
-        conn.close()
+        with sqlite3.connect(DB_DOSYASI) as conn:
+            df_loglar = pd.read_sql_query("SELECT * FROM islem_loglari ORDER BY id DESC", conn)
         if not df_loglar.empty:
             st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
@@ -473,9 +484,8 @@ try:
                                     with open(d_yolu, "rb") as file_in:
                                         st.download_button(f"📥 Belgeyi İndir ({p_sn})", data=file_in, file_name=d_adi, key=f"dl_gecmis_{p_row['id']}")
 
-                            conn = sqlite3.connect(DB_DOSYASI)
-                            df_p_gecmis = pd.read_sql_query("SELECT tarih, islem, aciklama FROM parca_gecmis WHERE parca_sn = ? ORDER BY id DESC", conn, params=(p_sn,))
-                            conn.close()
+                            with sqlite3.connect(DB_DOSYASI) as conn:
+                                df_p_gecmis = pd.read_sql_query("SELECT tarih, islem, aciklama FROM parca_gecmis WHERE parca_sn = ? ORDER BY id DESC", conn, params=(p_sn,))
                             
                             if not df_p_gecmis.empty:
                                 for _, g_row in df_p_gecmis.iterrows():
@@ -491,13 +501,14 @@ try:
 
     # 6. SEKME: YÖNETİM
     with tab_yonetim:
-        st.subheader("Veri Yönetimi ve Raporlama")
+        st.subheader("Veri Yönetimi, Raporlama ve Yedekleme")
         
         col_yonetim1, col_yonetim2 = st.columns(2)
         
         with col_yonetim1:
-            st.markdown("##### 📤 Dışa Aktar")
-            st.markdown("Mevcut tüm parça listesini Excel formatında bilgisayarınıza indirebilirsiniz.")
+            st.markdown("##### 📤 Dışa Aktar & Yedek Al")
+            st.markdown("Mevcut parça listesini **Excel** olarak indirebilir veya veritabanının tam **Yedeğini (.db)** alabilirsiniz.")
+            
             if not df_parcalar.empty:
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -505,59 +516,86 @@ try:
                 st.download_button("📥 Excel Raporu İndir", data=output.getvalue(), file_name="sistem_takip_rapor.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
                 st.info("Dışa aktarılacak kayıt bulunmuyor.")
+
+            st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+            
+            # --- VERİTABANI YEDEĞİ İNDİR ---
+            if os.path.exists(DB_DOSYASI):
+                with open(DB_DOSYASI, "rb") as db_file:
+                    st.download_button(
+                        "💾 Veritabanı Yedeği İndir (.db)",
+                        data=db_file,
+                        file_name=f"sistem_takip_yedek_{datetime.date.today().strftime('%d_%m_%Y')}.db",
+                        mime="application/x-sqlite3",
+                        help="Veritabanının tam kopyasını indirir."
+                    )
                 
         with col_yonetim2:
-            st.markdown("##### 📥 İçe Aktar (Excel / CSV)")
-            st.markdown("Daha önceden dışa aktardığınız veya sisteme uygun başlıklarla hazırladığınız excel/csv dosyasını yükleyin.")
+            st.markdown("##### 📥 İçe Aktar & Yedek Geri Yükle")
             
-            yuklenen_excel = st.file_uploader("Dosya Seç", type=["xlsx", "xls", "csv"], key="excel_ice_aktarim")
-            if yuklenen_excel is not None:
-                if st.button("Verileri Sisteme Aktar", type="primary"):
-                    try:
-                        if yuklenen_excel.name.endswith('.csv'):
-                            df_gelen = pd.read_csv(yuklenen_excel)
-                        else:
-                            df_gelen = pd.read_excel(yuklenen_excel)
-                            
-                        if 'id' in df_gelen.columns:
-                            df_gelen = df_gelen.drop(columns=['id'])
-                            
-                        conn = sqlite3.connect(DB_DOSYASI)
-                        cursor = conn.cursor()
-                        
-                        eklenen_sayisi = 0
-                        for _, row in df_gelen.iterrows():
-                            b_bolge = tr_upper(row.get("bolge", ""))
-                            b_sistem = tr_upper(row.get("sistem_adi", ""))
-                            b_s_pn = tr_upper(row.get("sistem_pn", ""))
-                            b_s_sn = tr_upper(row.get("sistem_sn", ""))
-                            b_parca = tr_upper(row.get("parca_adi", ""))
-                            b_p_pn = tr_upper(row.get("parca_pn", ""))
-                            b_p_sn = tr_upper(row.get("parca_sn", ""))
-                            b_durum = str(row.get("durum", "FAAL"))
-                            b_tarih = str(row.get("onarim_tarih", ""))
-                            b_aciklama = tr_upper(row.get("aciklama", ""))
-                            b_dosya = row.get("dosya_adi", None)
-                            if pd.isna(b_dosya):
-                                b_dosya = None
+            tab_ice_excel, tab_ice_db = st.tabs(["Excel / CSV Yükle", "Veritabanı (.db) Geri Yükle"])
+            
+            with tab_ice_excel:
+                yuklenen_excel = st.file_uploader("Excel Dosyası Seç", type=["xlsx", "xls", "csv"], key="excel_ice_aktarim")
+                if yuklenen_excel is not None:
+                    if st.button("Verileri Sisteme Aktar", type="primary"):
+                        try:
+                            if yuklenen_excel.name.endswith('.csv'):
+                                df_gelen = pd.read_csv(yuklenen_excel)
+                            else:
+                                df_gelen = pd.read_excel(yuklenen_excel)
                                 
-                            if b_bolge and b_sistem and b_parca:
-                                cursor.execute("""
-                                    INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                """, (b_bolge, b_sistem, b_s_pn, b_s_sn, b_parca, b_p_pn, b_p_sn, b_durum, b_tarih, b_aciklama, b_dosya))
+                            if 'id' in df_gelen.columns:
+                                df_gelen = df_gelen.drop(columns=['id'])
                                 
-                                cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
-                                               (b_p_sn, datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"EXCEL İÇE AKTARIM ({b_durum})", b_aciklama))
-                                eklenen_sayisi += 1
-                                
-                        conn.commit()
-                        conn.close()
-                        log_yaz("İÇE AKTARIM", f"Excelden {eklenen_sayisi} adet kayıt başarıyla aktarıldı.")
-                        st.success(f"Başarıyla {eklenen_sayisi} kayıt içe aktarıldı!")
-                        st.rerun()
-                    except Exception as ex:
-                        st.error(f"Dosya içe aktarılırken hata oluştu: {ex}")
+                            eklenen_sayisi = 0
+                            with sqlite3.connect(DB_DOSYASI) as conn:
+                                cursor = conn.cursor()
+                                for _, row in df_gelen.iterrows():
+                                    b_bolge = tr_upper(row.get("bolge", ""))
+                                    b_sistem = tr_upper(row.get("sistem_adi", ""))
+                                    b_s_pn = tr_upper(row.get("sistem_pn", ""))
+                                    b_s_sn = tr_upper(row.get("sistem_sn", ""))
+                                    b_parca = tr_upper(row.get("parca_adi", ""))
+                                    b_p_pn = tr_upper(row.get("parca_pn", ""))
+                                    b_p_sn = tr_upper(row.get("parca_sn", ""))
+                                    b_durum = str(row.get("durum", "FAAL"))
+                                    b_tarih = str(row.get("onarim_tarih", ""))
+                                    b_aciklama = tr_upper(row.get("aciklama", ""))
+                                    b_dosya = row.get("dosya_adi", None)
+                                    if pd.isna(b_dosya):
+                                        b_dosya = None
+                                        
+                                    if b_bolge and b_sistem and b_parca:
+                                        cursor.execute("""
+                                            INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        """, (b_bolge, b_sistem, b_s_pn, b_s_sn, b_parca, b_p_pn, b_p_sn, b_durum, b_tarih, b_aciklama, b_dosya))
+                                        
+                                        cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
+                                                       (b_p_sn, datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"EXCEL İÇE AKTARIM ({b_durum})", b_aciklama))
+                                        eklenen_sayisi += 1
+                                        
+                            log_yaz("İÇE AKTARIM", f"Excelden {eklenen_sayisi} adet kayıt başarıyla aktarıldı.")
+                            st.success(f"Başarıyla {eklenen_sayisi} kayıt içe aktarıldı!")
+                            st.rerun()
+                        except Exception as ex:
+                            st.error(f"Dosya içe aktarılırken hata oluştu: {ex}")
+
+            # --- VERİTABANI YEDEĞİ GERİ YÜKLE ---
+            with tab_ice_db:
+                st.warning("⚠️ **Uyarı:** Yedek dosyası yüklemek mevcut veritabanınızın üzerine yazacaktır!")
+                yuklenen_db = st.file_uploader("Yedek (.db) Dosyası Seç", type=["db", "sqlite3"], key="db_ice_aktarim")
+                if yuklenen_db is not None:
+                    if st.button("Yedeği Geri Yükle", type="primary"):
+                        try:
+                            with open(DB_DOSYASI, "wb") as f:
+                                f.write(yuklenen_db.getbuffer())
+                            log_yaz("YEDEK GERİ YÜKLEME", "Veritabanı yedeği geri yüklendi.")
+                            st.success("Veritabanı yedeği başarıyla yüklendi! Sayfa yenileniyor...")
+                            st.rerun()
+                        except Exception as ex:
+                            st.error(f"Yedek geri yüklenirken hata oluştu: {ex}")
 
 except Exception as e:
     st.error("Bir hata oluştu:")
