@@ -144,9 +144,13 @@ try:
         "⚙️ Dışa/İçe Aktar"
     ])
 
+    # Session State for Inline Editing
+    if "editing_id" not in st.session_state:
+        st.session_state.editing_id = None
+
     # 1. SEKME: TAKİP & FİLTRELEME
     with tab_takip:
-        st.subheader("Sistem Parça Listesi, Düzenleme ve Silme")
+        st.subheader("Sistem Parça Listesi ve Yönetimi")
         
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -184,84 +188,92 @@ try:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)]
                 
-            # Tabloya aktif düzenleme ve silme sütunları ekleniyor
-            duzenlenecek_df = filt_df.copy()
-            if "dosya_adi" in duzenlenecek_df.columns:
-                duzenlenecek_df = duzenlenecek_df.drop(columns=["dosya_adi"])
+            st.markdown("---")
+            st.markdown(f"**Listelenen Kayıt Sayısı:** {len(filt_df)}")
+
+            # Özel Kart / Satır Tasarımı (Yan Yana Aktif Düzenle ve Sil Butonları)
+            for _, row in filt_df.iterrows():
+                r_id = row["id"]
+                durum = row.get("durum", "FAAL")
                 
-            duzenlenecek_df.insert(0, "Düzenle", False)
-            duzenlenecek_df.insert(1, "Sil", False)
+                # Renk etiketleri
+                durum_badge = f"🟢 {durum}" if durum == "FAAL" else f"🟡 {durum}" if durum == "ONARIMDA" else f"🔴 {durum}" if durum == "GAYRI FAAL" else f"🔵 {durum}"
 
-            st.info("💡 Tablodaki hücreleri doğrudan çift tıklayarak düzenleyebilir, sol baştaki **'Düzenle'** veya **'Sil'** kutucuklarını işaretleyip alttaki butonları kullanarak anında güncelleyebilirsiniz.")
-
-            # Etkileşimli Tablo (Data Editor)
-            edited_df = st.data_editor(
-                duzenlenecek_df,
-                use_container_width=True,
-                hide_index=True,
-                key="parca_editor"
-            )
-
-            col_islem1, col_islem2 = st.columns(2)
-            
-            with col_islem1:
-                if st.button("Seçilen Değişiklikleri / Düzenlemeleri Kaydet", type="primary"):
-                    conn = sqlite3.connect(DB_DOSYASI)
-                    cursor = conn.cursor()
-                    guncellenen_sayisi = 0
+                with st.container():
+                    r_col1, r_col2, r_col3, r_col4 = st.columns([4, 3, 1, 1])
                     
-                    for _, row in edited_df.iterrows():
-                        if row["Düzenle"] == True:
-                            r_id = row["id"]
-                            cursor.execute("""
-                                UPDATE parcalar SET bolge=?, sistem_adi=?, sistem_pn=?, sistem_sn=?, parca_adi=?, parca_pn=?, parca_sn=?, durum=?, onarim_tarih=?, aciklama=?
-                                WHERE id=?
-                            """, (
-                                tr_upper(row.get("bolge", "")),
-                                tr_upper(row.get("sistem_adi", "")),
-                                tr_upper(row.get("sistem_pn", "")),
-                                tr_upper(row.get("sistem_sn", "")),
-                                tr_upper(row.get("parca_adi", "")),
-                                tr_upper(row.get("parca_pn", "")),
-                                tr_upper(row.get("parca_sn", "")),
-                                row.get("durum", "FAAL"),
-                                row.get("onarim_tarih", ""),
-                                tr_upper(row.get("aciklama", "")),
-                                r_id
-                            ))
-                            cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
-                                           (tr_upper(row.get("parca_sn", "")), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"GÜNCELLEME ({row.get('durum', 'FAAL')})", tr_upper(row.get("aciklama", ""))))
-                            guncellenen_sayisi += 1
+                    with r_col1:
+                        st.markdown(f"**Bölge:** `{row.get('bolge', '-')}` | **Sistem:** `{row.get('sistem_adi', '-')}`")
+                        st.markdown(f"**Parça:** {row.get('parca_adi', '-')} | **Parça SN:** `{row.get('parca_sn', '-')}`")
+                    
+                    with r_col2:
+                        st.markdown(f"**Durum:** {durum_badge}")
+                        st.markdown(f"**Tarih:** {row.get('onarim_tarih', '-')}")
+                        
+                    with r_col3:
+                        if st.button("✏️ Düzenle", key=f"edit_btn_{r_id}"):
+                            st.session_state.editing_id = r_id
+                            st.rerun()
                             
-                    conn.commit()
-                    conn.close()
-                    if guncellenen_sayisi > 0:
-                        log_yaz("GÜNCELLEME", f"{guncellenen_sayisi} adet kayıt tablodan güncellendi.")
-                        st.success(f"{guncellenen_sayisi} adet kayıt başarıyla güncellendi!")
-                        st.rerun()
-                    else:
-                        st.warning("Düzenlemek için satır başındaki 'Düzenle' kutucuğunu işaretleyin.")
-
-            with col_islem2:
-                if st.button("İşaretlenen Kayıtları Sil"):
-                    conn = sqlite3.connect(DB_DOSYASI)
-                    cursor = conn.cursor()
-                    silinen_sayisi = 0
-                    
-                    for _, row in edited_df.iterrows():
-                        if row["Sil"] == True:
-                            r_id = row["id"]
+                    with r_col4:
+                        if st.button("🗑️ Sil", key=f"del_btn_{r_id}", type="primary"):
+                            conn = sqlite3.connect(DB_DOSYASI)
+                            cursor = conn.cursor()
                             cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
-                            silinen_sayisi += 1
+                            conn.commit()
+                            conn.close()
+                            log_yaz("SİLME", f"ID {r_id} silindi.")
+                            if st.session_state.editing_id == r_id:
+                                st.session_state.editing_id = None
+                            st.success(f"Kayıt silindi!")
+                            st.rerun()
+
+                    # Eğer bu satır için Düzenle butonuna basıldıysa satırın altında form açılır
+                    if st.session_state.editing_id == r_id:
+                        with st.form(key=f"form_edit_{r_id}"):
+                            st.markdown(f"### Kaydı Düzenle (ID: {r_id})")
+                            e_bolge = st.text_input("Bölge", value=row.get("bolge", "") if pd.notna(row.get("bolge", "")) else "")
+                            e_sistem = st.text_input("Sistem Adı", value=row.get("sistem_adi", "") if pd.notna(row.get("sistem_adi", "")) else "")
+                            e_s_pn = st.text_input("Sistem PN", value=row.get("sistem_pn", "") if pd.notna(row.get("sistem_pn", "")) else "")
+                            e_s_sn = st.text_input("Sistem SN", value=row.get("sistem_sn", "") if pd.notna(row.get("sistem_sn", "")) else "")
+                            e_parca = st.text_input("Parça Adı", value=row.get("parca_adi", "") if pd.notna(row.get("parca_adi", "")) else "")
+                            e_p_pn = st.text_input("Parça PN", value=row.get("parca_pn", "") if pd.notna(row.get("parca_pn", "")) else "")
+                            e_p_sn = st.text_input("Parça SN", value=row.get("parca_sn", "") if pd.notna(row.get("parca_sn", "")) else "")
                             
-                    conn.commit()
-                    conn.close()
-                    if silinen_sayisi > 0:
-                        log_yaz("SİLME", f"{silinen_sayisi} adet kayıt silindi.")
-                        st.success(f"{silinen_sayisi} adet kayıt silindi!")
-                        st.rerun()
-                    else:
-                        st.warning("Silmek için satır başındaki 'Sil' kutucuğunu işaretleyin.")
+                            mevcut_d = row.get("durum", "FAAL")
+                            d_list = ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"]
+                            d_idx = d_list.index(mevcut_d) if mevcut_d in d_list else 0
+                            e_durum = st.selectbox("Durum", d_list, index=d_idx)
+                            
+                            e_tarih = st.text_input("Onarım Tarihi (GG.AA.YYYY)", value=row.get("onarim_tarih", "") if pd.notna(row.get("onarim_tarih", "")) else "")
+                            e_aciklama = st.text_area("Açıklama / Not", value=row.get("aciklama", "") if pd.notna(row.get("aciklama", "")) else "")
+                            
+                            f_col1, f_col2 = st.columns(2)
+                            kaydet_btn = f_col1.form_submit_button("Değişiklikleri Kaydet")
+                            iptal_btn = f_col2.form_submit_button("İptal")
+                            
+                            if kaydet_btn:
+                                conn = sqlite3.connect(DB_DOSYASI)
+                                cursor = conn.cursor()
+                                cursor.execute("""
+                                    UPDATE parcalar SET bolge=?, sistem_adi=?, sistem_pn=?, sistem_sn=?, parca_adi=?, parca_pn=?, parca_sn=?, durum=?, onarim_tarih=?, aciklama=?
+                                    WHERE id=?
+                                """, (tr_upper(e_bolge), tr_upper(e_sistem), tr_upper(e_s_pn), tr_upper(e_s_sn), tr_upper(e_parca), tr_upper(e_p_pn), tr_upper(e_p_sn), e_durum, e_tarih, tr_upper(e_aciklama), r_id))
+                                
+                                cursor.execute("INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (?, ?, ?, ?)", 
+                                               (tr_upper(e_p_sn), datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), f"GÜNCELLEME ({e_durum})", tr_upper(e_aciklama)))
+                                conn.commit()
+                                conn.close()
+                                log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
+                                st.session_state.editing_id = None
+                                st.success("Kayıt başarıyla güncellendi!")
+                                st.rerun()
+                                
+                            if iptal_btn:
+                                st.session_state.editing_id = None
+                                st.rerun()
+
+                    st.markdown("---")
         else:
             st.info("Henüz kayıt bulunmuyor.")
 
