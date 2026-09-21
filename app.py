@@ -83,24 +83,9 @@ try:
 
     veritabanini_hazirla()
 
-    # --- ÜST MENÜ VE GÖRSEL KONTROLÜ ---
-    col_logo, col_baslik = st.columns([1, 5])
-    with col_logo:
-        # Olası dosya adı varyasyonlarını kontrol et (büyük/küçükharf duyarlılığı için)
-        bulunan_gorsel = None
-        for aday in ["ihtar1.jpg", "Ihtar1.jpg", "İHTAR1.JPG", "ihtar1.JPG"]:
-            if os.path.exists(aday):
-                bulunan_gorsel = aday
-                break
-                
-        if bulunan_gorsel:
-            st.image(bulunan_gorsel, use_container_width=True)
-        else:
-            st.info("Logo / Görsel Yüklenmedi")
-            
-    with col_baslik:
-        st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
-        st.markdown("👤 **Rol:** `Admin`")
+    # --- ÜST BAŞLIK ---
+    st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
+    st.markdown("👤 **Rol:** `Admin`")
 
     # Verileri Çek
     conn = sqlite3.connect(DB_DOSYASI)
