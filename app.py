@@ -1,6 +1,7 @@
 import datetime
 import io
 import os
+import shutil
 import sqlite3
 import traceback
 import pandas as pd
@@ -14,9 +15,11 @@ st.set_page_config(
 try:
   DB_DOSYASI = "sistem_takip.db"
   UPLOAD_FOLDER = "yuklenen_dosyalar"
+  AUTOSAVE_FOLDER = "otomatik_yedekler"
 
-  if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+  for folder in [UPLOAD_FOLDER, AUTOSAVE_FOLDER]:
+    if not os.path.exists(folder):
+      os.makedirs(folder)
 
   # --- TÜRKÇE BÜYÜK HARF DÖNÜŞÜMÜ ---
   def tr_upper(text):
@@ -32,6 +35,34 @@ try:
         .replace("ç", "Ç")
         .upper()
     )
+
+  # --- OTOMATİK YEDEKLEME / OTOMATİK KAYDETME FONKSİYONU ---
+  def otomatik_yedekle():
+    """Her veri işleminde veritabanının otomatik yedeğini alır (Otomatik Kaydet)."""
+    try:
+      timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+      backup_path = os.path.join(AUTOSAVE_FOLDER, f"autosave_{timestamp}.db")
+      latest_backup = os.path.join(
+          AUTOSAVE_FOLDER, "sistem_takip_latest_autosave.db"
+      )
+
+      shutil.copy2(DB_DOSYASI, backup_path)
+      shutil.copy2(DB_DOSYASI, latest_backup)
+
+      # Son 10 otomatik yedeği tut, eskileri temizle
+      yedekler = sorted(
+          [
+              os.path.join(AUTOSAVE_FOLDER, f)
+              for f in os.listdir(AUTOSAVE_FOLDER)
+              if f.startswith("autosave_")
+          ],
+          key=os.path.getmtime,
+      )
+      if len(yedekler) > 10:
+        for eski_yedek in yedekler[:-10]:
+          os.remove(eski_yedek)
+    except Exception as ex:
+      print(f"Otomatik yedekleme hatası: {ex}")
 
   # --- TARİH DÖNÜŞÜM YARDIMCILARI ---
   def str_to_date(tarih_str):
@@ -99,6 +130,8 @@ try:
             " ?, ?)",
             (zaman, islem_turu, detay),
         )
+      # Her işlem sonrası otomatik kaydet & yedekle
+      otomatik_yedekle()
     except Exception as e:
       print(f"Log yazılamadı: {e}")
 
@@ -132,13 +165,29 @@ try:
         color: #ffffff;
         font-weight: 700;
     }
+    .autosave-badge {
+        font-size: 12px;
+        color: #2ecc71;
+        background-color: #1b382b;
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #2ecc71;
+    }
     </style>
     """,
       unsafe_allow_html=True,
   )
 
-  # --- ÜST BAŞLIK ---
-  st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
+  # --- ÜST BAŞLIK VE OTOMATİK KAYIT İNDİKATÖRÜ ---
+  col_head1, col_head2 = st.columns([8, 2])
+  with col_head1:
+    st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
+  with col_head2:
+    st.markdown(
+        "<div style='text-align: right; padding-top: 10px;'><span"
+        ' class="autosave-badge">🟢 Otomatik Kayıt Aktif</span></div>',
+        unsafe_allow_html=True,
+    )
 
   # Verileri Çek
   with sqlite3.connect(DB_DOSYASI) as conn:
@@ -252,9 +301,10 @@ try:
       unsafe_allow_html=True,
   )
 
-  tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs(
+  tab_takip, tab_canli, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs(
       [
-          "📋 Sistem Takip",
+          "📋 Kart Görünümü",
+          "✏️ Canlı Tablo (Anlık Kaydet)",
           "➕ Yeni Kayıt",
           "📝 Günlük Notlar",
           "📜 Loglar",
@@ -389,7 +439,7 @@ try:
             )
 
           log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
-          st.success("Kayıt güncellendi!")
+          st.success("Kayıt güncellendi ve otomatik kaydedildi!")
           st.rerun()
 
   # Silme Onay Dialogu
@@ -405,12 +455,12 @@ try:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
       log_yaz("SİLME", f"ID {r_id} ({parca_adi}) silindi.")
-      st.success("Kayıt başarıyla silindi.")
+      st.success("Kayıt başarıyla silindi ve yedeklendi.")
       st.rerun()
     if col_s2.button("İptal", use_container_width=True):
       st.rerun()
 
-  # 1. SEKME: TAKİP & FİLTRELEME
+  # 1. SEKME: TAKİP & FİLTRELEME (KART GÖRÜNÜMÜ)
   with tab_takip:
     if not df_parcalar.empty:
       col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -620,7 +670,83 @@ try:
     else:
       st.info("Kayıt bulunmuyor.")
 
-  # 2. SEKME: YENİ KAYIT EKLE
+  # 2. SEKME: CANLI TABLO (ANLIK OTOMATİK KAYDETME)
+  with tab_canli:
+    st.subheader("⚡ Canlı Tablo Düzenleyici (Hücre Bazlı Otomatik Kaydet)")
+    st.caption(
+        "Bu tabloda hücrelerde yaptığınız tüm değişiklikler **anında veritabanına"
+        " otomatik kaydolur** ve yedeği alınır."
+    )
+
+    if not df_parcalar.empty:
+      durum_secenekleri = ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"]
+
+      # st.data_editor ile düzenlenebilir tablo
+      duzenlenmis_df = st.data_editor(
+          df_parcalar,
+          num_rows="dynamic",  # Satır ekleme/silme izni
+          column_config={
+              "id": st.column_config.NumberColumn("ID", disabled=True),
+              "bolge": st.column_config.TextColumn("Bölge", required=True),
+              "sistem_adi": st.column_config.TextColumn("Sistem Adı"),
+              "sistem_pn": st.column_config.TextColumn("Sistem PN"),
+              "sistem_sn": st.column_config.TextColumn("Sistem SN"),
+              "parca_adi": st.column_config.TextColumn("Parça Adı"),
+              "parca_pn": st.column_config.TextColumn("Parça PN"),
+              "parca_sn": st.column_config.TextColumn("Parça SN"),
+              "durum": st.column_config.SelectboxColumn(
+                  "Durum", options=durum_secenekleri, required=True
+              ),
+              "onarim_tarih": st.column_config.TextColumn(
+                  "Onarım Tarihi (DD.MM.YYYY)"
+              ),
+              "aciklama": st.column_config.TextColumn("Açıklama"),
+              "dosya_adi": st.column_config.TextColumn(
+                  "Dosya", disabled=True
+              ),
+          },
+          hide_index=True,
+          use_container_width=True,
+          key="canli_data_editor",
+      )
+
+      # Değişiklik Kontrolü ve Otomatik Veritabanı Güncelleme
+      if not duzenlenmis_df.equals(df_parcalar):
+        try:
+          with sqlite3.connect(DB_DOSYASI) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM parcalar")
+            for _, r in duzenlenmis_df.iterrows():
+              cursor.execute(
+                  """
+                                INSERT INTO parcalar (id, bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                  (
+                      r.get("id"),
+                      tr_upper(r.get("bolge", "")),
+                      tr_upper(r.get("sistem_adi", "")),
+                      tr_upper(r.get("sistem_pn", "")),
+                      tr_upper(r.get("sistem_sn", "")),
+                      tr_upper(r.get("parca_adi", "")),
+                      tr_upper(r.get("parca_pn", "")),
+                      tr_upper(r.get("parca_sn", "")),
+                      r.get("durum", "FAAL"),
+                      r.get("onarim_tarih", ""),
+                      tr_upper(r.get("aciklama", "")),
+                      r.get("dosya_adi"),
+                  ),
+              )
+
+          log_yaz("CANLI DÜZENLEME", "Canlı tablo üzerinden veriler güncellendi.")
+          st.toast("⚡ Değişiklikler anında otomatik kaydedildi!", icon="💾")
+          st.rerun()
+        except Exception as ex:
+          st.error(f"Otomatik kaydetme sırasında hata: {ex}")
+    else:
+      st.info("Düzenlenecek kayıt yok.")
+
+  # 3. SEKME: YENİ KAYIT EKLE
   with tab_ekle:
     kayitli_bolgeler = (
         sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -747,10 +873,10 @@ try:
           log_yaz(
               "YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi."
           )
-          st.success("Kayıt eklendi!")
+          st.success("Kayıt eklendi ve otomatik kaydedildi!")
           st.rerun()
 
-  # 3. SEKME: GÜNLÜK NOTLAR
+  # 4. SEKME: GÜNLÜK NOTLAR
   with tab_notlar:
     kayitli_not_bolgeler = (
         sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -776,6 +902,7 @@ try:
               " ?, ?)",
               (n_tarih_str, tr_upper(n_bolge), tr_upper(n_detay)),
           )
+        log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
         st.success("Günlük not eklendi!")
         st.rerun()
 
@@ -786,7 +913,7 @@ try:
     if not df_notlar.empty:
       st.dataframe(df_notlar, use_container_width=True, hide_index=True)
 
-  # 4. SEKME: LOGLAR
+  # 5. SEKME: LOGLAR
   with tab_loglar:
     with sqlite3.connect(DB_DOSYASI) as conn:
       df_loglar = pd.read_sql_query(
@@ -795,7 +922,7 @@ try:
     if not df_loglar.empty:
       st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
-  # 5. SEKME: PARÇA GEÇMİŞİ
+  # 6. SEKME: PARÇA GEÇMİŞİ
   with tab_gecmis:
     st.subheader("Bölge Bazlı Parça ve İşlem Geçmişi")
 
@@ -874,14 +1001,14 @@ try:
     else:
       st.info("Henüz hiç parça kaydı bulunmuyor.")
 
-  # 6. SEKME: YÖNETİM
+  # 7. SEKME: YÖNETİM & OTOMATİK YEDEK YÖNETİMİ
   with tab_yonetim:
-    st.subheader("Veri Yönetimi, Raporlama ve Yedekleme")
+    st.subheader("Veri Yönetimi, Raporlama ve Otomatik Yedeğe Dönüş")
 
     col_yonetim1, col_yonetim2 = st.columns(2)
 
     with col_yonetim1:
-      st.markdown("##### 📤 Dışa Aktar & Yedek Al")
+      st.markdown("##### 📤 Dışa Aktar & Manuel Yedek Al")
       st.markdown(
           "Mevcut parça listesini **Excel** olarak indirebilir veya"
           " veritabanının tam **Yedeğini (.db)** alabilirsiniz."
@@ -919,6 +1046,35 @@ try:
               mime="application/x-sqlite3",
               help="Veritabanının tam kopyasını indirir.",
           )
+
+      # --- OTOMATİK YEDEKLERİ LİSTELE / İNDİR ---
+      st.markdown(
+          "<hr style='margin:10px 0;'>", unsafe_allow_html=True
+      )
+      st.markdown("##### 🟢 Otomatik Alınan Son Yedekler")
+      if os.path.exists(AUTOSAVE_FOLDER):
+        oto_yedek_listesi = sorted(
+            [
+                f
+                for f in os.listdir(AUTOSAVE_FOLDER)
+                if f.startswith("autosave_")
+            ],
+            reverse=True,
+        )
+        if oto_yedek_listesi:
+          secilen_oto_yedek = st.selectbox(
+              "Yedek Seçin", oto_yedek_listesi[:10]
+          )
+          y_path = os.path.join(AUTOSAVE_FOLDER, secilen_oto_yedek)
+          with open(y_path, "rb") as y_file:
+            st.download_button(
+                f"📥 Seçilen Otomatik Yedeği İndir ({secilen_oto_yedek})",
+                data=y_file,
+                file_name=secilen_oto_yedek,
+                mime="application/x-sqlite3",
+            )
+        else:
+          st.caption("Henüz otomatik yedek oluşturulmadı.")
 
     with col_yonetim2:
       st.markdown("##### 📥 İçe Aktar & Yedek Geri Yükle")
@@ -1020,7 +1176,7 @@ try:
               )
               st.success(
                   f"{eklenen_sayisi} adet kayıt başarıyla veritabanına"
-                  " aktarıldı!"
+                  " aktarıldı ve yedeklendi!"
               )
               st.rerun()
             except Exception as ex:
