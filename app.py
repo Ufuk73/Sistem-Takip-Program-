@@ -963,9 +963,7 @@ try:
       else:
         st.info("Dışa aktarılacak kayıt bulunmuyor.")
 
-      st.markdown(
-          "<hr style='margin:10px 0;'>", unsafe_allow_html=True
-      )
+      st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
       # --- VERİTABANI YEDEĞİ İNDİR ---
       if os.path.exists(DB_DOSYASI):
@@ -982,9 +980,7 @@ try:
           )
 
       # --- OTOMATİK EXCEL YEDEKLERİNİ LİSTELE / İNDİR ---
-      st.markdown(
-          "<hr style='margin:10px 0;'>", unsafe_allow_html=True
-      )
+      st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
       st.markdown("##### 🟢 Otomatik Alınan Son Excel Yedekleri")
       if os.path.exists(AUTOSAVE_FOLDER):
         oto_yedek_listesi = sorted(
@@ -1015,18 +1011,20 @@ try:
     with col_yonetim2:
       st.markdown("##### 📥 İçe Aktar & Geri Yükle")
 
-      tab_ice_excel, tab_ice_db = st.tabs(
-          ["Excel / CSV Yükle", "Veritabanı (.db) Geri Yükle"]
-      )
+      tab_ice_excel, tab_ice_excel_restore = st.tabs([
+          "Excel / CSV Ekle (Araya Ekle)",
+          "Excel Yedeğinden Geri Yükle (Üzerine Yaz)",
+      ])
 
+      # 1. ALT SEKME: Sadece Veri Ekleme (Mevcut Verilerin Altına Ekler)
       with tab_ice_excel:
         yuklenen_excel = st.file_uploader(
-            "Excel Dosyası Seç",
+            "Excel / CSV Dosyası Seç",
             type=["xlsx", "xls", "csv"],
             key="excel_ice_aktarim",
         )
         if yuklenen_excel is not None:
-          if st.button("Verileri Sisteme Aktar", type="primary"):
+          if st.button("Verileri Mevcut Listeye Ekle", type="primary"):
             try:
               if yuklenen_excel.name.endswith(".csv"):
                 df_gelen = pd.read_csv(yuklenen_excel)
@@ -1111,31 +1109,82 @@ try:
                   f"Excel/CSV ile {eklenen_sayisi} kayıt eklendi.",
               )
               st.success(
-                  f"{eklenen_sayisi} adet kayıt başarıyla aktarıldı ve Excel"
-                  " yedeği alındı!"
+                  f"{eklenen_sayisi} adet kayıt başarıyla eklendi ve otomatik"
+                  " Excel yedeği alındı!"
               )
               st.rerun()
             except Exception as ex:
               st.error(f"Aktarım sırasında bir hata oluştu: {ex}")
 
-      with tab_ice_db:
-        uploaded_db = st.file_uploader(
-            "Yedek Veritabanı Dosyası Seç (.db)",
-            type=["db", "sqlite", "sqlite3"],
-            key="db_ice_aktarim",
+      # 2. ALT SEKME: Excel Yedeğinden Veritabanını Tam Olarak Geri Yükleme (Üzerine Yazar)
+      with tab_ice_excel_restore:
+        st.caption(
+            "Yüklediğiniz Excel yedeğindeki veriler mevcut veritabanındaki"
+            " verilerin **üzerine yazılacaktır**."
         )
-        if uploaded_db is not None:
+        uploaded_excel_backup = st.file_uploader(
+            "Excel Yedek Dosyası Seç (.xlsx / .xls)",
+            type=["xlsx", "xls"],
+            key="excel_yedek_geri_yukle",
+        )
+
+        if uploaded_excel_backup is not None:
           st.warning(
-              "⚠️ Veritabanını geri yüklemek mevcut verilerin üzerine yazılmasına"
-              " neden olabilir. Devam etmek istediğinize emin misiniz?"
+              "⚠️ **DİKKAT:** Bu işlem mevcut veritabanınızı sıfırlayacak ve"
+              " yüklediğiniz Excel dosyasındaki verileri yükleyecektir. Devam"
+              " etmek istiyor musunuz?"
           )
-          if st.button("Veritabanını Geri Yükle", type="primary"):
+          if st.button(
+              "Excel Yedeğini Veritabanına Geri Yükle", type="primary"
+          ):
             try:
-              with open(DB_DOSYASI, "wb") as f:
-                f.write(uploaded_db.getbuffer())
-              log_yaz("YEDEK GERİ YÜKLEME", "Veritabanı yedekten geri yüklendi.")
+              excel_file = pd.ExcelFile(uploaded_excel_backup)
+              sheet_names = excel_file.sheet_names
+
+              with sqlite3.connect(DB_DOSYASI) as conn:
+                cursor = conn.cursor()
+
+                # Parçalar Tablosunu Yenile
+                if "Parcalar" in sheet_names:
+                  df_p = pd.read_excel(excel_file, sheet_name="Parcalar")
+                  cursor.execute("DELETE FROM parcalar")
+                  df_p.to_sql("parcalar", conn, if_exists="append", index=False)
+                elif len(sheet_names) > 0:
+                  df_p = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                  cursor.execute("DELETE FROM parcalar")
+                  df_p.to_sql("parcalar", conn, if_exists="append", index=False)
+
+                # Günlük Notlar Tablosunu Yenile
+                if "Gunluk_Notlar" in sheet_names:
+                  df_n = pd.read_excel(excel_file, sheet_name="Gunluk_Notlar")
+                  cursor.execute("DELETE FROM gunluk_notlar")
+                  df_n.to_sql(
+                      "gunluk_notlar", conn, if_exists="append", index=False
+                  )
+
+                # Loglar Tablosunu Yenile
+                if "Loglar" in sheet_names:
+                  df_l = pd.read_excel(excel_file, sheet_name="Loglar")
+                  cursor.execute("DELETE FROM islem_loglari")
+                  df_l.to_sql(
+                      "islem_loglari", conn, if_exists="append", index=False
+                  )
+
+                # Parça Geçmişi Tablosunu Yenile
+                if "Parca_Gecmisi" in sheet_names:
+                  df_g = pd.read_excel(excel_file, sheet_name="Parca_Gecmisi")
+                  cursor.execute("DELETE FROM parca_gecmis")
+                  df_g.to_sql(
+                      "parca_gecmis", conn, if_exists="append", index=False
+                  )
+
+              log_yaz(
+                  "EXCEL YEDEK GERİ YÜKLEME",
+                  "Veritabanı Excel yedeğinden başarıyla geri yüklendi.",
+              )
               st.success(
-                  "Veritabanı başarıyla geri yüklendi! Sayfa yenileniyor..."
+                  "Veritabanı Excel yedeği ile başarıyla güncellendi! Sayfa"
+                  " yenileniyor..."
               )
               st.rerun()
             except Exception as ex:
