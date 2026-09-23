@@ -36,25 +36,36 @@ try:
         .upper()
     )
 
-  # --- OTOMATİK YEDEKLEME / OTOMATİK KAYDETME FONKSİYONU ---
+  # --- OTOMATİK EXCEL YEDEKLEME FONKSİYONU ---
   def otomatik_yedekle():
-    """Her veri işleminde veritabanının otomatik yedeğini alır (Otomatik Kaydet)."""
+    """Her veri işleminde verilerin otomatik Excel yedeğini alır (Son 10 yedek saklanır)."""
     try:
       timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-      backup_path = os.path.join(AUTOSAVE_FOLDER, f"autosave_{timestamp}.db")
+      backup_path = os.path.join(AUTOSAVE_FOLDER, f"autosave_{timestamp}.xlsx")
       latest_backup = os.path.join(
-          AUTOSAVE_FOLDER, "sistem_takip_latest_autosave.db"
+          AUTOSAVE_FOLDER, "sistem_takip_latest_autosave.xlsx"
       )
 
-      shutil.copy2(DB_DOSYASI, backup_path)
-      shutil.copy2(DB_DOSYASI, latest_backup)
+      with sqlite3.connect(DB_DOSYASI) as conn:
+        df_p = pd.read_sql_query("SELECT * FROM parcalar", conn)
+        df_n = pd.read_sql_query("SELECT * FROM gunluk_notlar", conn)
+        df_l = pd.read_sql_query("SELECT * FROM islem_loglari", conn)
+        df_g = pd.read_sql_query("SELECT * FROM parca_gecmis", conn)
 
-      # Son 10 otomatik yedeği tut, eskileri temizle
+      with pd.ExcelWriter(backup_path, engine="openpyxl") as writer:
+        df_p.to_excel(writer, sheet_name="Parcalar", index=False)
+        df_n.to_excel(writer, sheet_name="Gunluk_Notlar", index=False)
+        df_l.to_excel(writer, sheet_name="Loglar", index=False)
+        df_g.to_excel(writer, sheet_name="Parca_Gecmisi", index=False)
+
+      shutil.copy2(backup_path, latest_backup)
+
+      # Son 10 otomatik Excel yedeğini tut, eskileri temizle
       yedekler = sorted(
           [
               os.path.join(AUTOSAVE_FOLDER, f)
               for f in os.listdir(AUTOSAVE_FOLDER)
-              if f.startswith("autosave_")
+              if f.startswith("autosave_") and f.endswith(".xlsx")
           ],
           key=os.path.getmtime,
       )
@@ -62,7 +73,7 @@ try:
         for eski_yedek in yedekler[:-10]:
           os.remove(eski_yedek)
     except Exception as ex:
-      print(f"Otomatik yedekleme hatası: {ex}")
+      print(f"Otomatik Excel yedekleme hatası: {ex}")
 
   # --- TARİH DÖNÜŞÜM YARDIMCILARI ---
   def str_to_date(tarih_str):
@@ -130,7 +141,7 @@ try:
             " ?, ?)",
             (zaman, islem_turu, detay),
         )
-      # Her işlem sonrası otomatik kaydet & yedekle
+      # Her işlem sonrası otomatik Excel yedeklemesi yap
       otomatik_yedekle()
     except Exception as e:
       print(f"Log yazılamadı: {e}")
@@ -179,13 +190,13 @@ try:
   )
 
   # --- ÜST BAŞLIK VE OTOMATİK KAYIT İNDİKATÖRÜ ---
-  col_head1, col_head2 = st.columns([8, 2])
+  col_head1, col_head2 = st.columns([7, 3])
   with col_head1:
     st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
   with col_head2:
     st.markdown(
         "<div style='text-align: right; padding-top: 10px;'><span"
-        ' class="autosave-badge">🟢 Otomatik Kayıt Aktif</span></div>',
+        ' class="autosave-badge">🟢 Otomatik Excel Yedekleme Aktif</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -301,10 +312,9 @@ try:
       unsafe_allow_html=True,
   )
 
-  tab_takip, tab_canli, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs(
+  tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs(
       [
           "📋 Kart Görünümü",
-          "✏️ Canlı Tablo (Anlık Kaydet)",
           "➕ Yeni Kayıt",
           "📝 Günlük Notlar",
           "📜 Loglar",
@@ -439,7 +449,7 @@ try:
             )
 
           log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
-          st.success("Kayıt güncellendi ve otomatik kaydedildi!")
+          st.success("Kayıt güncellendi ve Excel yedeği alındı!")
           st.rerun()
 
   # Silme Onay Dialogu
@@ -455,7 +465,7 @@ try:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM parcalar WHERE id=?", (r_id,))
       log_yaz("SİLME", f"ID {r_id} ({parca_adi}) silindi.")
-      st.success("Kayıt başarıyla silindi ve yedeklendi.")
+      st.success("Kayıt başarıyla silindi ve Excel yedeği alındı.")
       st.rerun()
     if col_s2.button("İptal", use_container_width=True):
       st.rerun()
@@ -670,83 +680,7 @@ try:
     else:
       st.info("Kayıt bulunmuyor.")
 
-  # 2. SEKME: CANLI TABLO (ANLIK OTOMATİK KAYDETME)
-  with tab_canli:
-    st.subheader("⚡ Canlı Tablo Düzenleyici (Hücre Bazlı Otomatik Kaydet)")
-    st.caption(
-        "Bu tabloda hücrelerde yaptığınız tüm değişiklikler **anında veritabanına"
-        " otomatik kaydolur** ve yedeği alınır."
-    )
-
-    if not df_parcalar.empty:
-      durum_secenekleri = ["FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL"]
-
-      # st.data_editor ile düzenlenebilir tablo
-      duzenlenmis_df = st.data_editor(
-          df_parcalar,
-          num_rows="dynamic",  # Satır ekleme/silme izni
-          column_config={
-              "id": st.column_config.NumberColumn("ID", disabled=True),
-              "bolge": st.column_config.TextColumn("Bölge", required=True),
-              "sistem_adi": st.column_config.TextColumn("Sistem Adı"),
-              "sistem_pn": st.column_config.TextColumn("Sistem PN"),
-              "sistem_sn": st.column_config.TextColumn("Sistem SN"),
-              "parca_adi": st.column_config.TextColumn("Parça Adı"),
-              "parca_pn": st.column_config.TextColumn("Parça PN"),
-              "parca_sn": st.column_config.TextColumn("Parça SN"),
-              "durum": st.column_config.SelectboxColumn(
-                  "Durum", options=durum_secenekleri, required=True
-              ),
-              "onarim_tarih": st.column_config.TextColumn(
-                  "Onarım Tarihi (DD.MM.YYYY)"
-              ),
-              "aciklama": st.column_config.TextColumn("Açıklama"),
-              "dosya_adi": st.column_config.TextColumn(
-                  "Dosya", disabled=True
-              ),
-          },
-          hide_index=True,
-          use_container_width=True,
-          key="canli_data_editor",
-      )
-
-      # Değişiklik Kontrolü ve Otomatik Veritabanı Güncelleme
-      if not duzenlenmis_df.equals(df_parcalar):
-        try:
-          with sqlite3.connect(DB_DOSYASI) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM parcalar")
-            for _, r in duzenlenmis_df.iterrows():
-              cursor.execute(
-                  """
-                                INSERT INTO parcalar (id, bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                  (
-                      r.get("id"),
-                      tr_upper(r.get("bolge", "")),
-                      tr_upper(r.get("sistem_adi", "")),
-                      tr_upper(r.get("sistem_pn", "")),
-                      tr_upper(r.get("sistem_sn", "")),
-                      tr_upper(r.get("parca_adi", "")),
-                      tr_upper(r.get("parca_pn", "")),
-                      tr_upper(r.get("parca_sn", "")),
-                      r.get("durum", "FAAL"),
-                      r.get("onarim_tarih", ""),
-                      tr_upper(r.get("aciklama", "")),
-                      r.get("dosya_adi"),
-                  ),
-              )
-
-          log_yaz("CANLI DÜZENLEME", "Canlı tablo üzerinden veriler güncellendi.")
-          st.toast("⚡ Değişiklikler anında otomatik kaydedildi!", icon="💾")
-          st.rerun()
-        except Exception as ex:
-          st.error(f"Otomatik kaydetme sırasında hata: {ex}")
-    else:
-      st.info("Düzenlenecek kayıt yok.")
-
-  # 3. SEKME: YENİ KAYIT EKLE
+  # 2. SEKME: YENİ KAYIT EKLE
   with tab_ekle:
     kayitli_bolgeler = (
         sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -873,10 +807,10 @@ try:
           log_yaz(
               "YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi."
           )
-          st.success("Kayıt eklendi ve otomatik kaydedildi!")
+          st.success("Kayıt eklendi ve otomatik Excel yedeği alındı!")
           st.rerun()
 
-  # 4. SEKME: GÜNLÜK NOTLAR
+  # 3. SEKME: GÜNLÜK NOTLAR
   with tab_notlar:
     kayitli_not_bolgeler = (
         sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -913,7 +847,7 @@ try:
     if not df_notlar.empty:
       st.dataframe(df_notlar, use_container_width=True, hide_index=True)
 
-  # 5. SEKME: LOGLAR
+  # 4. SEKME: LOGLAR
   with tab_loglar:
     with sqlite3.connect(DB_DOSYASI) as conn:
       df_loglar = pd.read_sql_query(
@@ -922,7 +856,7 @@ try:
     if not df_loglar.empty:
       st.dataframe(df_loglar, use_container_width=True, hide_index=True)
 
-  # 6. SEKME: PARÇA GEÇMİŞİ
+  # 5. SEKME: PARÇA GEÇMİŞİ
   with tab_gecmis:
     st.subheader("Bölge Bazlı Parça ve İşlem Geçmişi")
 
@@ -1001,14 +935,14 @@ try:
     else:
       st.info("Henüz hiç parça kaydı bulunmuyor.")
 
-  # 7. SEKME: YÖNETİM & OTOMATİK YEDEK YÖNETİMİ
+  # 6. SEKME: YÖNETİM & OTOMATİK EXCEL YEDEK YÖNETİMİ
   with tab_yonetim:
-    st.subheader("Veri Yönetimi, Raporlama ve Otomatik Yedeğe Dönüş")
+    st.subheader("Veri Yönetimi, Raporlama ve Otomatik Excel Yedekleri")
 
     col_yonetim1, col_yonetim2 = st.columns(2)
 
     with col_yonetim1:
-      st.markdown("##### 📤 Dışa Aktar & Manuel Yedek Al")
+      st.markdown("##### 📤 Manuel Dışa Aktar & Yedek Al")
       st.markdown(
           "Mevcut parça listesini **Excel** olarak indirebilir veya"
           " veritabanının tam **Yedeğini (.db)** alabilirsiniz."
@@ -1019,7 +953,7 @@ try:
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
           df_parcalar.to_excel(writer, index=False, sheet_name="Veriler")
         st.download_button(
-            "📥 Excel Raporu İndir",
+            "📥 Güncel Excel Raporu İndir",
             data=output.getvalue(),
             file_name="sistem_takip_rapor.xlsx",
             mime=(
@@ -1047,37 +981,39 @@ try:
               help="Veritabanının tam kopyasını indirir.",
           )
 
-      # --- OTOMATİK YEDEKLERİ LİSTELE / İNDİR ---
+      # --- OTOMATİK EXCEL YEDEKLERİNİ LİSTELE / İNDİR ---
       st.markdown(
           "<hr style='margin:10px 0;'>", unsafe_allow_html=True
       )
-      st.markdown("##### 🟢 Otomatik Alınan Son Yedekler")
+      st.markdown("##### 🟢 Otomatik Alınan Son Excel Yedekleri")
       if os.path.exists(AUTOSAVE_FOLDER):
         oto_yedek_listesi = sorted(
             [
                 f
                 for f in os.listdir(AUTOSAVE_FOLDER)
-                if f.startswith("autosave_")
+                if f.startswith("autosave_") and f.endswith(".xlsx")
             ],
             reverse=True,
         )
         if oto_yedek_listesi:
           secilen_oto_yedek = st.selectbox(
-              "Yedek Seçin", oto_yedek_listesi[:10]
+              "Excel Yedek Seçin", oto_yedek_listesi[:10]
           )
           y_path = os.path.join(AUTOSAVE_FOLDER, secilen_oto_yedek)
           with open(y_path, "rb") as y_file:
             st.download_button(
-                f"📥 Seçilen Otomatik Yedeği İndir ({secilen_oto_yedek})",
+                f"📥 Otomatik Excel Yedeğini İndir ({secilen_oto_yedek})",
                 data=y_file,
                 file_name=secilen_oto_yedek,
-                mime="application/x-sqlite3",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ),
             )
         else:
-          st.caption("Henüz otomatik yedek oluşturulmadı.")
+          st.caption("Henüz otomatik Excel yedeği oluşturulmadı.")
 
     with col_yonetim2:
-      st.markdown("##### 📥 İçe Aktar & Yedek Geri Yükle")
+      st.markdown("##### 📥 İçe Aktar & Geri Yükle")
 
       tab_ice_excel, tab_ice_db = st.tabs(
           ["Excel / CSV Yükle", "Veritabanı (.db) Geri Yükle"]
@@ -1175,8 +1111,8 @@ try:
                   f"Excel/CSV ile {eklenen_sayisi} kayıt eklendi.",
               )
               st.success(
-                  f"{eklenen_sayisi} adet kayıt başarıyla veritabanına"
-                  " aktarıldı ve yedeklendi!"
+                  f"{eklenen_sayisi} adet kayıt başarıyla aktarıldı ve Excel"
+                  " yedeği alındı!"
               )
               st.rerun()
             except Exception as ex:
