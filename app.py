@@ -1058,7 +1058,7 @@ try:
                     "İndirilecek Otomatik Yedeği Seç", yedek_dosyalari
                 )
                 yedek_tam_yol = os.path.join(AUTOSAVE_FOLDER, secilen_yedek)
-                with open(yed_tam_yol, "rb") as yf:
+                with open(yedek_tam_yol, "rb") as yf:
                     st.download_button(
                         "⬇️ Seçilen Yedeği İndir",
                         data=yf,
