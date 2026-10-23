@@ -10,9 +10,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 # --- KİŞİSEL İMZA & KİMLİK ---
-GELISTIRICI_ADI = (
-    "Ufuk ATAK"  # Buraya kendi adınızı veya ünvanınızı yazın
-)
+GELISTIRICI_ADI = "Ufuk Atak"
 
 # Sayfa Yapılandırması
 st.set_page_config(
@@ -225,15 +223,15 @@ try:
 
     veritabanini_hazirla()
 
-    # --- ÖZEL SİYAH TEMA VE ÇERÇEVE CSS ---
+    # --- ÖZEL SİYAH TEMA, ÇERÇEVE VE KÖŞE İMZA CSS ---
     st.markdown(
-        """
+        f"""
         <style>
-        .stApp {
+        .stApp {{
             background-color: #121212;
             color: #e0e0e0;
-        }
-        .metric-card {
+        }}
+        .metric-card {{
             background-color: #1e1e1e;
             border: 1px solid #333333;
             border-radius: 8px;
@@ -241,42 +239,53 @@ try:
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .metric-title {
+        .metric-title {{
             font-size: 13px;
             color: #a0a0a0;
             font-weight: 600;
             margin-bottom: 4px;
             text-transform: uppercase;
-        }
-        .metric-value {
+        }}
+        .metric-value {{
             font-size: 22px;
             color: #ffffff;
             font-weight: 700;
-        }
-        .autosave-badge {
+        }}
+        .autosave-badge {{
             font-size: 12px;
             color: #2ecc71;
             background-color: #1b382b;
             padding: 4px 8px;
             border-radius: 4px;
             border: 1px solid #2ecc71;
-        }
+        }}
+        
+        /* Modern Sağ Alt Köşe İmza (Watermark) */
+        .corner-signature {{
+            position: fixed;
+            bottom: 15px;
+            right: 20px;
+            background: rgba(26, 26, 26, 0.85);
+            border: 1px solid #333333;
+            color: #a0a0a0;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            z-index: 99999;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+        }}
+        .corner-signature b {{
+            color: #00adb5;
+        }}
         </style>
+        
+        <div class="corner-signature">Design by <b>{GELISTIRICI_ADI}</b> ⚡</div>
         """,
         unsafe_allow_html=True,
     )
-
-    # --- KİŞİSEL YAN MENÜ (SİDEBAR) İMZASI ---
-    with st.sidebar:
-        st.markdown("### 🛠️ Sistem Paneli")
-        st.markdown(
-            "Bu uygulama operasyonel takip ve hız odaklı olarak tasarlanmıştır."
-        )
-        st.markdown("---")
-        st.markdown(
-            f"<div style='text-align: center; color: #a0a0a0; font-size: 13px;'>Geliştiren:<br><b>{GELISTIRICI_ADI}</b></div>",
-            unsafe_allow_html=True,
-        )
 
     # --- ÜST BAŞLIK VE OTOMATİK KAYIT İNDİKATÖRÜ ---
     col_head1, col_head2 = st.columns([7, 3])
