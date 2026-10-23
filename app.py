@@ -260,17 +260,25 @@ try:
             border: 1px solid #2ecc71;
         }
         
-        /* Sağ alttaki 'Manage app' butonunu ve Streamlit menülerini gizleme */
+        /* Sağ alttaki 'Manage app' butonunu ve Streamlit menülerini kesin olarak gizleme */
         [data-testid="stStatusWidget"] {
             display: none !important;
+        }
+        div[class*="viewerBadge"] {
+            display: none !important;
+            visibility: hidden !important;
         }
         #MainMenu {
             visibility: hidden !important;
         }
         footer {
             visibility: hidden !important;
+            display: none !important;
         }
         .stDeployButton {
+            display: none !important;
+        }
+        [data-testid="stToolbar"] {
             display: none !important;
         }
         
