@@ -25,6 +25,29 @@ try:
         return psycopg2.connect(st.secrets["postgres"]["connection_string"])
 
 
+    # --- Önbellekli Veri Okuma Fonksiyonları (Hızlandırma İçin) ---
+    @st.cache_data
+    def veri_cek_parcalar():
+        with get_db_connection() as conn:
+            return pd.read_sql_query("SELECT * FROM parcalar", conn)
+
+
+    @st.cache_data
+    def veri_cek_notlar():
+        with get_db_connection() as conn:
+            return pd.read_sql_query(
+                "SELECT * FROM gunluk_notlar ORDER BY id DESC", conn
+            )
+
+
+    @st.cache_data
+    def veri_cek_loglar():
+        with get_db_connection() as conn:
+            return pd.read_sql_query(
+                "SELECT * FROM islem_loglari ORDER BY id DESC", conn
+            )
+
+
     # --- TÜRKÇE BÜYÜK HARF DÖNÜŞÜMÜ ---
     def tr_upper(text):
         if not isinstance(text, str):
@@ -43,7 +66,7 @@ try:
 
     # --- OTOMATİK EXCEL YEDEKLEME FONKSİYONU ---
     def otomatik_yedekle():
-        """Her veri işleminde verilerin otomatik Excel yedeğini alır (Son 10 yedek saklanır)."""
+        """Her veri işleminde verilerin otomatik Excel yedeğini alır."""
         try:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = os.path.join(
@@ -53,10 +76,10 @@ try:
                 AUTOSAVE_FOLDER, "sistem_takip_latest_autosave.xlsx"
             )
 
+            df_p = veri_cek_parcalar()
+            df_n = veri_cek_notlar()
+            df_l = veri_cek_loglar()
             with get_db_connection() as conn:
-                df_p = pd.read_sql_query("SELECT * FROM parcalar", conn)
-                df_n = pd.read_sql_query("SELECT * FROM gunluk_notlar", conn)
-                df_l = pd.read_sql_query("SELECT * FROM islem_loglari", conn)
                 df_g = pd.read_sql_query("SELECT * FROM parca_gecmis", conn)
 
             with pd.ExcelWriter(backup_path, engine="openpyxl") as writer:
@@ -148,6 +171,7 @@ try:
                         (zaman, islem_turu, detay),
                     )
                 conn.commit()
+            st.cache_data.clear()  # Önbelleği yenile
             otomatik_yedekle()
         except Exception as e:
             print(f"Log yazılamadı: {e}")
@@ -202,13 +226,12 @@ try:
         st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
     with col_head2:
         st.markdown(
-            "<div style='text-align: right; padding-top: 10px;'><span class='autosave-badge'>🟢 Otomatik Excel Yedekleme Aktif</span></div>",
+            "<div style='text-align: right; padding-top: 10px;'><span class='autosave-badge'>🟢 Akıllı Önbellek & Yedek Aktif</span></div>",
             unsafe_allow_html=True,
         )
 
-    # Verileri Çek
-    with get_db_connection() as conn:
-        df_parcalar = pd.read_sql_query("SELECT * FROM parcalar", conn)
+    # Verileri Çek (Önbellekten)
+    df_parcalar = veri_cek_parcalar()
 
     # İstatistik Hesaplama
     toplam = len(df_parcalar)
@@ -253,7 +276,7 @@ try:
                     if gecen_gun >= 30:
                         kritik += 1
                         kritik_liste.append(
-                            f"• **Bölge: {row.get('bolge', 'Bölge Yok')}** ({row.get('parca_adi', 'Parça')} - SN: {row.get('parca_sn', '-')}) -> {gecen_gun} gündür onarımda!"
+                            f"• **Bölge: {row.get('bolge', 'Bölge Yok')}** ({row.get('parça_adi', row.get('parca_adi', 'Parça'))} - SN: {row.get('parca_sn', '-')}) -> {gecen_gun} gündür onarımda!"
                         )
                 except ValueError:
                     pass
@@ -450,6 +473,7 @@ try:
                             )
                         conn.commit()
 
+                    st.cache_data.clear()  # Önbelleği temizle
                     log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
                     st.toast(
                         "✅ Kayıt güncellendi ve Excel yedeği alındı!", icon="💾"
@@ -470,6 +494,7 @@ try:
                 with conn.cursor() as cursor:
                     cursor.execute("DELETE FROM parcalar WHERE id=%s", (r_id,))
                 conn.commit()
+            st.cache_data.clear()  # Önbelleği temizle
             log_yaz("SİLME", f"ID {r_id} ({parca_adi}) silindi.")
             st.toast("✅ Kayıt başarıyla silindi.", icon="🗑️")
             st.success("Kayıt başarıyla silindi ve Excel yedeği alındı.")
@@ -821,6 +846,7 @@ try:
                             )
                         conn.commit()
 
+                    st.cache_data.clear()  # Önbelleği temizle
                     log_yaz(
                         "YENİ KAYIT",
                         f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.",
@@ -861,15 +887,12 @@ try:
                                 (tarih_str, n_bolge, tr_upper(n_detay)),
                             )
                         conn.commit()
+                    st.cache_data.clear()  # Önbelleği temizle
                     log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
                     st.success("Not başarıyla kaydedildi!")
                     st.rerun()
 
-        with get_db_connection() as conn:
-            df_notlar = pd.read_sql_query(
-                "SELECT * FROM gunluk_notlar ORDER BY id DESC", conn
-            )
-
+        df_notlar = veri_cek_notlar()
         if not df_notlar.empty:
             st.markdown("---")
             for _, nrow in df_notlar.iterrows():
@@ -883,11 +906,7 @@ try:
     # 4. SEKME: LOGLAR
     with tab_loglar:
         st.subheader("📜 Sistem İşlem Logları")
-        with get_db_connection() as conn:
-            df_loglar = pd.read_sql_query(
-                "SELECT * FROM islem_loglari ORDER BY id DESC", conn
-            )
-
+        df_loglar = veri_cek_loglar()
         if not df_loglar.empty:
             st.dataframe(
                 df_loglar, use_container_width=True, hide_index=True
@@ -897,6 +916,7 @@ try:
                     with conn.cursor() as cursor:
                         cursor.execute("DELETE FROM islem_loglari")
                     conn.commit()
+                st.cache_data.clear()  # Önbelleği temizle
                 st.success("Loglar temizlendi.")
                 st.rerun()
         else:
@@ -942,17 +962,11 @@ try:
                 "Anlık Excel Raporu Oluştur ve İndir", type="primary"
             ):
                 output = io.BytesIO()
+                df_p = veri_cek_parcalar()
+                df_n = veri_cek_notlar()
+                df_l = veri_cek_loglar()
                 with get_db_connection() as conn:
-                    df_p = pd.read_sql_query("SELECT * FROM parcalar", conn)
-                    df_n = pd.read_sql_query(
-                        "SELECT * FROM gunluk_notlar", conn
-                    )
-                    df_l = pd.read_sql_query(
-                        "SELECT * FROM islem_loglari", conn
-                    )
-                    df_g = pd.read_sql_query(
-                        "SELECT * FROM parca_gecmis", conn
-                    )
+                    df_g = pd.read_sql_query("SELECT * FROM parca_gecmis", conn)
 
                 with pd.ExcelWriter(output, engine="openpyxl") as writer:
                     df_p.to_excel(writer, sheet_name="Parcalar", index=False)
