@@ -17,8 +17,7 @@ try:
     AUTOSAVE_FOLDER = "otomatik_yedekler"
 
     for folder in [UPLOAD_FOLDER, AUTOSAVE_FOLDER]:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        os.makedirs(folder, exist_ok=True)
 
 
     # --- POSTGRESQL (SUPABASE) BAĞLANTI FONKSİYONU ---
