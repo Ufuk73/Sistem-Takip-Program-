@@ -19,18 +19,15 @@ try:
     for folder in [UPLOAD_FOLDER, AUTOSAVE_FOLDER]:
         os.makedirs(folder, exist_ok=True)
 
-
     # --- POSTGRESQL (SUPABASE) BAĞLANTI FONKSİYONU ---
     def get_db_connection():
         return psycopg2.connect(st.secrets["postgres"]["connection_string"])
-
 
     # --- Önbellekli Veri Okuma Fonksiyonları ---
     @st.cache_data
     def veri_cek_parcalar():
         with get_db_connection() as conn:
             return pd.read_sql_query("SELECT * FROM parcalar", conn)
-
 
     @st.cache_data
     def veri_cek_notlar():
@@ -39,14 +36,12 @@ try:
                 "SELECT * FROM gunluk_notlar ORDER BY id DESC", conn
             )
 
-
     @st.cache_data
     def veri_cek_loglar():
         with get_db_connection() as conn:
             return pd.read_sql_query(
                 "SELECT * FROM islem_loglari ORDER BY id DESC", conn
             )
-
 
     # --- TÜRKÇE BÜYÜK HARF DÖNÜŞÜMÜ ---
     def tr_upper(text):
@@ -63,10 +58,8 @@ try:
             .upper()
         )
 
-
     # --- OTOMATİK EXCEL YEDEKLEME FONKSİYONU ---
     def otomatik_yedekle():
-        """Her veri işleminde verilerin otomatik Excel yedeğini alır."""
         try:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = os.path.join(
@@ -104,7 +97,6 @@ try:
         except Exception as ex:
             print(f"Otomatik Excel yedekleme hatası: {ex}")
 
-
     # --- TARİH DÖNÜŞÜM YARDIMCILARI ---
     def str_to_date(tarih_str):
         if not tarih_str or pd.isna(tarih_str):
@@ -116,6 +108,33 @@ try:
         except ValueError:
             return datetime.date.today()
 
+    # --- HIZLI DURUM GÜNCELLEME FONKSİYONU ---
+    def hizli_durum_guncelle(r_id, yeni_durum, parca_sn, parca_adi):
+        bugun_str = datetime.date.today().strftime("%d.%m.%Y")
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE parcalar SET durum=%s, onarim_tarih=%s
+                    WHERE id=%s
+                    """,
+                    (yeni_durum, bugun_str, r_id),
+                )
+                cursor.execute(
+                    "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
+                    (
+                        tr_upper(parca_sn),
+                        datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
+                        f"HIZLI DURUM GÜNCELLEME ({yeni_durum})",
+                        f"Tek tıkla durum {yeni_durum} yapıldı.",
+                    ),
+                )
+            conn.commit()
+
+        st.cache_data.clear()
+        log_yaz("HIZLI GÜNCELLEME", f"ID {r_id} ({parca_adi}) -> {yeni_durum}")
+        st.toast(f"✅ {parca_adi} durumu '{yeni_durum}' yapıldı!", icon="⚡")
+        st.rerun()
 
     # --- VERİTABANI BAŞLATMA VE MIGRATION ---
     def veritabanini_hazirla():
@@ -160,7 +179,6 @@ try:
                         )
             conn.commit()
 
-
     def log_yaz(islem_turu, detay):
         try:
             zaman = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -174,7 +192,6 @@ try:
             otomatik_yedekle()
         except Exception as e:
             print(f"Log yazılamadı: {e}")
-
 
     veritabanini_hazirla()
 
@@ -336,7 +353,6 @@ try:
         "⚙️ Yönetim",
     ])
 
-
     # Dialog ile Düzenleme Fonksiyonu
     @st.dialog("Kayıt Düzenle", width="large")
     def duzenle_dialog(r_id):
@@ -347,6 +363,25 @@ try:
 
         if not df_tekil.empty:
             row = df_tekil.iloc[0]
+
+            if f"dialog_aciklama_{r_id}" not in st.session_state:
+                st.session_state[f"dialog_aciklama_{r_id}"] = (
+                    row.get("aciklama", "")
+                    if pd.notna(row.get("aciklama", ""))
+                    else ""
+                )
+
+            st.markdown("##### 📝 Hazır Not Şablonları")
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            if sc1.button("🔧 Onarıma Alındı", key=f"d_snip1_{r_id}"):
+                st.session_state[f"dialog_aciklama_{r_id}"] += " [ONARIMA ALINDI]"
+            if sc2.button("✅ Test Edildi / Faal", key=f"d_snip2_{r_id}"):
+                st.session_state[f"dialog_aciklama_{r_id}"] += " [TEST EDİLDİ - FAAL]"
+            if sc3.button("⏳ Parça Bekleniyor", key=f"d_snip3_{r_id}"):
+                st.session_state[f"dialog_aciklama_{r_id}"] += " [YEDEK PARÇA BEKLENİYOR]"
+            if sc4.button("🚚 Sevke Hazır", key=f"d_snip4_{r_id}"):
+                st.session_state[f"dialog_aciklama_{r_id}"] += " [SEVKE HAZIRLANDI]"
+
             with st.form(key=f"dialog_form_{r_id}"):
                 e_bolge = st.text_input(
                     "Bölge",
@@ -429,11 +464,7 @@ try:
 
                 e_aciklama = st.text_area(
                     "Açıklama / Not",
-                    value=(
-                        row.get("aciklama", "")
-                        if pd.notna(row.get("aciklama", ""))
-                        else ""
-                    ),
+                    value=st.session_state[f"dialog_aciklama_{r_id}"],
                 )
 
                 if st.form_submit_button("Güncellemeyi Kaydet", type="primary"):
@@ -472,11 +503,10 @@ try:
                             )
                         conn.commit()
 
-                    st.cache_data.clear()  # Önbelleği anında temizle
+                    st.cache_data.clear()
                     log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
                     st.toast("✅ Kayıt güncellendi!", icon="💾")
                     st.rerun()
-
 
     # Silme Onay Dialogu
     @st.dialog("Silme Onayı")
@@ -490,13 +520,12 @@ try:
                 with conn.cursor() as cursor:
                     cursor.execute("DELETE FROM parcalar WHERE id=%s", (r_id,))
                 conn.commit()
-            st.cache_data.clear()  # Önbelleği anında temizle
+            st.cache_data.clear()
             log_yaz("SİLME", f"ID {r_id} ({parca_adi}) silindi.")
             st.toast("✅ Kayıt silindi.", icon="🗑️")
             st.rerun()
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
-
 
     # 1. SEKME: TAKİP & FİLTRELEME (KART GÖRÜNÜMÜ)
     with tab_takip:
@@ -620,8 +649,8 @@ try:
                         f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)",
                         expanded=False,
                     ):
-                        h1, h2, h3, h4, h5 = st.columns(
-                            [2.2, 2.2, 1.8, 0.9, 0.9]
+                        h1, h2, h3, h4, h5, h6 = st.columns(
+                            [2, 2, 1.5, 2.2, 0.6, 0.6]
                         )
                         h1.markdown(
                             "<small><b>SİSTEM ADI</b></small>",
@@ -636,10 +665,13 @@ try:
                             unsafe_allow_html=True,
                         )
                         h4.markdown(
-                            "<small><b>DÜZENLE</b></small>",
+                            "<small><b>⚡ HIZLI DURUM DEĞİŞTİR</b></small>",
                             unsafe_allow_html=True,
                         )
                         h5.markdown(
+                            "<small><b>DÜZ.</b></small>", unsafe_allow_html=True
+                        )
+                        h6.markdown(
                             "<small><b>SİL</b></small>", unsafe_allow_html=True
                         )
                         st.markdown(
@@ -650,6 +682,9 @@ try:
                         for _, row in b_grubu.iterrows():
                             r_id = row["id"]
                             durum = row.get("durum", "FAAL")
+                            p_sn = row.get("parca_sn", "-")
+                            p_adi = row.get("parca_adi", "Parça")
+
                             durum_badge = (
                                 f"🟢 {durum}"
                                 if durum == "FAAL"
@@ -668,8 +703,8 @@ try:
                                 )
                             )
 
-                            c1, c2, c3, c4, c5 = st.columns(
-                                [2.2, 2.2, 1.8, 0.9, 0.9]
+                            c1, c2, c3, c4, c5, c6 = st.columns(
+                                [2, 2, 1.5, 2.2, 0.6, 0.6]
                             )
 
                             with c1:
@@ -679,7 +714,7 @@ try:
                                 )
                             with c2:
                                 st.markdown(
-                                    f"<div style='line-height: 1.1;'><small>{row.get('parca_adi', '-')}<br><span style='color:#a0a0a0;'>SN: {row.get('parca_sn', '-')}</span></small></div>",
+                                    f"<div style='line-height: 1.1;'><small>{p_adi}<br><span style='color:#a0a0a0;'>SN: {p_sn}</span></small></div>",
                                     unsafe_allow_html=True,
                                 )
                             with c3:
@@ -688,21 +723,53 @@ try:
                                     unsafe_allow_html=True,
                                 )
 
+                            # ⚡ HIZLI DURUM BUTONLARI
                             with c4:
+                                q1, q2, q3, q4 = st.columns(4)
+                                if q1.button(
+                                    "🟢",
+                                    key=f"q_faal_{r_id}",
+                                    help="Tek Tıkla FAAL Yap",
+                                ):
+                                    hizli_durum_guncelle(
+                                        r_id, "FAAL", p_sn, p_adi
+                                    )
+                                if q2.button(
+                                    "🟡",
+                                    key=f"q_onarim_{r_id}",
+                                    help="Tek Tıkla ONARIMDA Yap",
+                                ):
+                                    hizli_durum_guncelle(
+                                        r_id, "ONARIMDA", p_sn, p_adi
+                                    )
+                                if q3.button(
+                                    "🔵",
+                                    key=f"q_yedek_{r_id}",
+                                    help="Tek Tıkla YEDEK PARÇA Yap",
+                                ):
+                                    hizli_durum_guncelle(
+                                        r_id, "YEDEK PARÇA", p_sn, p_adi
+                                    )
+                                if q4.button(
+                                    "🚚",
+                                    key=f"q_sevk_{r_id}",
+                                    help="Tek Tıkla SEVK Yap",
+                                ):
+                                    hizli_durum_guncelle(
+                                        r_id, "SEVK 🚚", p_sn, p_adi
+                                    )
+
+                            with c5:
                                 if st.button(
                                     "✏️", key=f"edit_{r_id}", help="Düzenle"
                                 ):
                                     duzenle_dialog(r_id)
 
-                            with c5:
+                            with c6:
                                 if st.button(
                                     "🗑️", key=f"del_{r_id}", help="Sil"
                                 ):
-                                    sil_onay_dialog(
-                                        r_id,
-                                        row.get("parca_adi", "Parça"),
-                                        row.get("parca_sn", "-"),
-                                    )
+                                    sil_onay_dialog(r_id, p_adi, p_sn)
 
                             st.markdown(
                                 "<hr style='margin:3px 0; border-color: #333;'>",
@@ -762,6 +829,22 @@ try:
                     else ""
                 )
 
+        if "yeni_kayit_aciklama" not in st.session_state:
+            st.session_state["yeni_kayit_aciklama"] = ""
+
+        st.markdown("##### 📝 Hazır Not Şablonları")
+        sn1, sn2, sn3, sn4 = st.columns(4)
+        if sn1.button("🔧 Onarıma Alındı", key="snip1"):
+            st.session_state["yeni_kayit_aciklama"] += " [ONARIMA ALINDI]"
+        if sn2.button("✅ Test Edildi / Faal", key="snip2"):
+            st.session_state["yeni_kayit_aciklama"] += " [TEST EDİLDİ - FAAL]"
+        if sn3.button("⏳ Parça Bekleniyor", key="snip3"):
+            st.session_state["yeni_kayit_aciklama"] += (
+                " [YEDEK PARÇA BEKLENİYOR]"
+            )
+        if sn4.button("🚚 Sevke Hazır", key="snip4"):
+            st.session_state["yeni_kayit_aciklama"] += " [SEVKE HAZIRLANDI]"
+
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             st.markdown(
                 f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
@@ -789,7 +872,9 @@ try:
             )
             e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
 
-            e_aciklama = st.text_area("Açıklama")
+            e_aciklama = st.text_area(
+                "Açıklama", value=st.session_state["yeni_kayit_aciklama"]
+            )
             yuklenen_dosya_form = st.file_uploader(
                 "Belge/Fotoğraf", type=["png", "jpg", "jpeg", "pdf"]
             )
@@ -841,7 +926,8 @@ try:
                             )
                         conn.commit()
 
-                    st.cache_data.clear()  # Önbelleği anında temizle
+                    st.session_state["yeni_kayit_aciklama"] = ""
+                    st.cache_data.clear()
                     log_yaz(
                         "YENİ KAYIT",
                         f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.",
@@ -878,7 +964,7 @@ try:
                                 (tarih_str, n_bolge, tr_upper(n_detay)),
                             )
                         conn.commit()
-                    st.cache_data.clear()  # Önbelleği anında temizle
+                    st.cache_data.clear()
                     log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
                     st.toast("✅ Not başarıyla kaydedildi!", icon="📝")
                     st.rerun()
@@ -907,7 +993,7 @@ try:
                     with conn.cursor() as cursor:
                         cursor.execute("DELETE FROM islem_loglari")
                     conn.commit()
-                st.cache_data.clear()  # Önbelleği temizle
+                st.cache_data.clear()
                 st.toast("🧹 Loglar temizlendi.")
                 st.rerun()
         else:
