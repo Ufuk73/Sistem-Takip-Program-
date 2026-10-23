@@ -223,7 +223,7 @@ try:
 
     veritabanini_hazirla()
 
-    # --- ÖZEL SİYAH TEMA, ÇERÇEVE VE KÖŞE İMZA CSS ---
+    # --- ÖZEL SİYAH TEMA VE ÇERÇEVE CSS ---
     st.markdown(
         """
         <style>
@@ -259,47 +259,20 @@ try:
             border-radius: 4px;
             border: 1px solid #2ecc71;
         }
-        
-        /* Sağ alttaki 'Manage app' butonunu ve Streamlit menülerini kesin olarak gizleme */
-        [data-testid="stStatusWidget"] {
-            display: none !important;
-        }
-        div[class*="viewerBadge"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-        #MainMenu {
-            visibility: hidden !important;
-        }
-        footer {
-            visibility: hidden !important;
-            display: none !important;
-        }
-        .stDeployButton {
-            display: none !important;
-        }
-        [data-testid="stToolbar"] {
-            display: none !important;
-        }
-        
-        /* Modern Sağ Alt Köşe İmza (Watermark) */
-        .corner-signature {
-            position: fixed;
-            bottom: 15px;
-            right: 20px;
-            background: rgba(26, 26, 26, 0.85);
+        .top-signature {
+            background: #1e1e1e;
             border: 1px solid #333333;
             color: #a0a0a0;
-            padding: 5px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 12px;
             letter-spacing: 0.5px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
-            z-index: 99999;
-            backdrop-filter: blur(4px);
-            pointer-events: none;
+            text-align: right;
+            display: inline-block;
+            float: right;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .corner-signature b {
+        .top-signature b {
             color: #00adb5;
         }
         </style>
@@ -307,19 +280,18 @@ try:
         unsafe_allow_html=True,
     )
 
-    # Sağ alt köşe imzası
-    st.markdown(
-        f'<div class="corner-signature">Design by <b>{GELISTIRICI_ADI}</b> ⚡</div>',
-        unsafe_allow_html=True,
-    )
-
-    # --- ÜST BAŞLIK VE OTOMATİK KAYIT İNDİKATÖRÜ ---
-    col_head1, col_head2 = st.columns([7, 3])
+    # --- ÜST BAŞLIK, SUNUCU DURUMU VE SAĞ ÜST İMZA ---
+    col_head1, col_head2, col_head3 = st.columns([4, 3, 3])
     with col_head1:
-        st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
+        st.markdown("### ⚙️ Sistem ve Parça Takip")
     with col_head2:
         st.markdown(
-            "<div style='text-align: right; padding-top: 10px;'><span class='autosave-badge'>🟢 Stockholm Sunucu Aktif</span></div>",
+            "<div style='padding-top: 8px;'><span class='autosave-badge'>🟢 Stockholm Sunucu Aktif</span></div>",
+            unsafe_allow_html=True,
+        )
+    with col_head3:
+        st.markdown(
+            f"<div style='text-align: right;'><div class='top-signature'>Design by <b>{GELISTIRICI_ADI}</b> ⚡</div></div>",
             unsafe_allow_html=True,
         )
 
@@ -1086,7 +1058,7 @@ try:
                     "İndirilecek Otomatik Yedeği Seç", yedek_dosyalari
                 )
                 yedek_tam_yol = os.path.join(AUTOSAVE_FOLDER, secilen_yedek)
-                with open(yedek_tam_yol, "rb") as yf:
+                with open(yed_tam_yol, "rb") as yf:
                     st.download_button(
                         "⬇️ Seçilen Yedeği İndir",
                         data=yf,
