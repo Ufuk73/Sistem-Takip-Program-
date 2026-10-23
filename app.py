@@ -9,6 +9,11 @@ import streamlit as st
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+# --- KİŞİSEL İMZA & KİMLİK ---
+GELISTIRICI_ADI = (
+    "Ufuk ATAK"  # Buraya kendi adınızı veya ünvanınızı yazın
+)
+
 # Sayfa Yapılandırması
 st.set_page_config(
     page_title="Sistem ve Parça Takip Sistemi", page_icon="⚙️", layout="wide"
@@ -75,7 +80,6 @@ try:
                 max_col_letter = get_column_letter(ws.max_column)
                 table_range = f"A1:{max_col_letter}{ws.max_row}"
 
-                # Tablo adı için Türkçe karakterleri düzenle
                 clean_name = (
                     sheetname.replace(" ", "_")
                     .replace("İ", "I")
@@ -88,9 +92,8 @@ try:
 
                 tab = Table(displayName=f"Tablo_{clean_name}", ref=table_range)
 
-                # Modern profesyonel tablo stili (Zebra çizgili ve filtreli)
                 style = TableStyleInfo(
-                    name="TableStyleMedium9",  # Şık antrasit/gri kurumsal tema
+                    name="TableStyleMedium9",
                     showFirstColumn=False,
                     showLastColumn=False,
                     showRowStripes=True,
@@ -99,7 +102,6 @@ try:
                 tab.tableStyleInfo = style
                 ws.add_table(tab)
 
-            # Sütun genişliklerini içeriğe göre otomatik ayarla
             for col in ws.columns:
                 max_len = 0
                 col_letter = get_column_letter(col[0].column)
@@ -263,6 +265,18 @@ try:
         """,
         unsafe_allow_html=True,
     )
+
+    # --- KİŞİSEL YAN MENÜ (SİDEBAR) İMZASI ---
+    with st.sidebar:
+        st.markdown("### 🛠️ Sistem Paneli")
+        st.markdown(
+            "Bu uygulama operasyonel takip ve hız odaklı olarak tasarlanmıştır."
+        )
+        st.markdown("---")
+        st.markdown(
+            f"<div style='text-align: center; color: #a0a0a0; font-size: 13px;'>Geliştiren:<br><b>{GELISTIRICI_ADI}</b></div>",
+            unsafe_allow_html=True,
+        )
 
     # --- ÜST BAŞLIK VE OTOMATİK KAYIT İNDİKATÖRÜ ---
     col_head1, col_head2 = st.columns([7, 3])
