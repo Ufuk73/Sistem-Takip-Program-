@@ -225,13 +225,13 @@ try:
 
     # --- ÖZEL SİYAH TEMA, ÇERÇEVE VE KÖŞE İMZA CSS ---
     st.markdown(
-        f"""
+        """
         <style>
-        .stApp {{
+        .stApp {
             background-color: #121212;
             color: #e0e0e0;
-        }}
-        .metric-card {{
+        }
+        .metric-card {
             background-color: #1e1e1e;
             border: 1px solid #333333;
             border-radius: 8px;
@@ -239,29 +239,29 @@ try:
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .metric-title {{
+        .metric-title {
             font-size: 13px;
             color: #a0a0a0;
             font-weight: 600;
             margin-bottom: 4px;
             text-transform: uppercase;
-        }}
-        .metric-value {{
+        }
+        .metric-value {
             font-size: 22px;
             color: #ffffff;
             font-weight: 700;
-        }}
-        .autosave-badge {{
+        }
+        .autosave-badge {
             font-size: 12px;
             color: #2ecc71;
             background-color: #1b382b;
             padding: 4px 8px;
             border-radius: 4px;
             border: 1px solid #2ecc71;
-        }}
+        }
         
         /* Modern Sağ Alt Köşe İmza (Watermark) */
-        .corner-signature {{
+        .corner-signature {
             position: fixed;
             bottom: 15px;
             right: 20px;
@@ -276,14 +276,18 @@ try:
             z-index: 99999;
             backdrop-filter: blur(4px);
             pointer-events: none;
-        }}
-        .corner-signature b {{
+        }
+        .corner-signature b {
             color: #00adb5;
-        }}
+        }
         </style>
-        
-        <div class="corner-signature">Design by <b>{GELISTIRICI_ADI}</b> ⚡</div>
         """,
+        unsafe_allow_html=True,
+    )
+
+    # Sağ alt köşe imzasını ayrı ve güvenli şekilde basıyoruz
+    st.markdown(
+        f'<div class="corner-signature">Design by <b>{GELISTIRICI_ADI}</b> ⚡</div>',
         unsafe_allow_html=True,
     )
 
