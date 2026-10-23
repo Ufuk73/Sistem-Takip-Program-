@@ -25,7 +25,7 @@ try:
         return psycopg2.connect(st.secrets["postgres"]["connection_string"])
 
 
-    # --- Önbellekli Veri Okuma Fonksiyonları (Hızlandırma İçin) ---
+    # --- Önbellekli Veri Okuma Fonksiyonları ---
     @st.cache_data
     def veri_cek_parcalar():
         with get_db_connection() as conn:
@@ -171,7 +171,6 @@ try:
                         (zaman, islem_turu, detay),
                     )
                 conn.commit()
-            st.cache_data.clear()  # Önbelleği yenile
             otomatik_yedekle()
         except Exception as e:
             print(f"Log yazılamadı: {e}")
@@ -226,7 +225,7 @@ try:
         st.markdown("### ⚙️ Sistem ve Parça Takip Sistemi")
     with col_head2:
         st.markdown(
-            "<div style='text-align: right; padding-top: 10px;'><span class='autosave-badge'>🟢 Akıllı Önbellek & Yedek Aktif</span></div>",
+            "<div style='text-align: right; padding-top: 10px;'><span class='autosave-badge'>🟢 Stockholm Sunucu Aktif</span></div>",
             unsafe_allow_html=True,
         )
 
@@ -473,12 +472,9 @@ try:
                             )
                         conn.commit()
 
-                    st.cache_data.clear()  # Önbelleği temizle
+                    st.cache_data.clear()  # Önbelleği anında temizle
                     log_yaz("GÜNCELLEME", f"ID {r_id} güncellendi.")
-                    st.toast(
-                        "✅ Kayıt güncellendi ve Excel yedeği alındı!", icon="💾"
-                    )
-                    st.success("Kayıt güncellendi ve Excel yedeği alındı!")
+                    st.toast("✅ Kayıt güncellendi!", icon="💾")
                     st.rerun()
 
 
@@ -494,10 +490,9 @@ try:
                 with conn.cursor() as cursor:
                     cursor.execute("DELETE FROM parcalar WHERE id=%s", (r_id,))
                 conn.commit()
-            st.cache_data.clear()  # Önbelleği temizle
+            st.cache_data.clear()  # Önbelleği anında temizle
             log_yaz("SİLME", f"ID {r_id} ({parca_adi}) silindi.")
-            st.toast("✅ Kayıt başarıyla silindi.", icon="🗑️")
-            st.success("Kayıt başarıyla silindi ve Excel yedeği alındı.")
+            st.toast("✅ Kayıt silindi.", icon="🗑️")
             st.rerun()
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
@@ -846,17 +841,13 @@ try:
                             )
                         conn.commit()
 
-                    st.cache_data.clear()  # Önbelleği temizle
+                    st.cache_data.clear()  # Önbelleği anında temizle
                     log_yaz(
                         "YENİ KAYIT",
                         f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.",
                     )
                     st.toast(
-                        "✅ Kayıt başarıyla eklendi ve Excel yedeği alındı!",
-                        icon="🎉",
-                    )
-                    st.success(
-                        "Kayıt başarıyla eklendi ve otomatik Excel yedeği alındı!"
+                        "✅ Kayıt başarıyla eklendi ve yedeklendi!", icon="🎉"
                     )
                     st.rerun()
 
@@ -887,9 +878,9 @@ try:
                                 (tarih_str, n_bolge, tr_upper(n_detay)),
                             )
                         conn.commit()
-                    st.cache_data.clear()  # Önbelleği temizle
+                    st.cache_data.clear()  # Önbelleği anında temizle
                     log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
-                    st.success("Not başarıyla kaydedildi!")
+                    st.toast("✅ Not başarıyla kaydedildi!", icon="📝")
                     st.rerun()
 
         df_notlar = veri_cek_notlar()
@@ -917,7 +908,7 @@ try:
                         cursor.execute("DELETE FROM islem_loglari")
                     conn.commit()
                 st.cache_data.clear()  # Önbelleği temizle
-                st.success("Loglar temizlendi.")
+                st.toast("🧹 Loglar temizlendi.")
                 st.rerun()
         else:
             st.info("Kayıtlı log bulunmuyor.")
