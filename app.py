@@ -6,8 +6,8 @@ import traceback
 import pandas as pd
 import psycopg2
 import streamlit as st
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 # Sayfa Yapılandırması
 st.set_page_config(
@@ -66,51 +66,47 @@ try:
         )
 
 
-    # --- MODERN EXCEL BİÇİMLENDİRME FONKSİYONU ---
+    # --- MODERN EXCEL TABLO BİÇİMLENDİRME FONKSİYONU ---
     def excel_stili_uygula(writer):
-        """Oluşturulan Excel dosyasına modern tablo stili, başlık rengi ve otomatik sütun genişliği uygular."""
-        header_fill = PatternFill(
-            start_color="1E1E1E", end_color="1E1E1E", fill_type="solid"
-        )
-        header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-        data_font = Font(name="Calibri", size=10)
-        thin_border = Border(
-            left=Side(style="thin", color="DDDDDD"),
-            right=Side(style="thin", color="DDDDDD"),
-            top=Side(style="thin", color="DDDDDD"),
-            bottom=Side(style="thin", color="DDDDDD"),
-        )
-        align_left = Alignment(horizontal="left", vertical="center")
-
+        """Verileri profesyonel Excel Tablosu (TableStyle) formatına dönüştürür ve sütunları otomatik ayarlar."""
         for sheetname in writer.sheets:
             ws = writer.sheets[sheetname]
-            ws.views.sheetView[0].showGridLines = True
+            if ws.max_row > 1 and ws.max_column > 0:
+                max_col_letter = get_column_letter(ws.max_column)
+                table_range = f"A1:{max_col_letter}{ws.max_row}"
 
-            # Başlık Satırı Biçimlendirme
-            for col_num in range(1, ws.max_column + 1):
-                cell = ws.cell(row=1, column=col_num)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = Alignment(
-                    horizontal="center", vertical="center"
+                # Tablo adı için Türkçe karakterleri düzenle
+                clean_name = (
+                    sheetname.replace(" ", "_")
+                    .replace("İ", "I")
+                    .replace("ğ", "g")
+                    .replace("ü", "u")
+                    .replace("ş", "s")
+                    .replace("ö", "o")
+                    .replace("ç", "c")
                 )
 
-            # Veri Satırları Biçimlendirme
-            for row_num in range(2, ws.max_row + 1):
-                for col_num in range(1, ws.max_column + 1):
-                    cell = ws.cell(row=row_num, column=col_num)
-                    cell.font = data_font
-                    cell.border = thin_border
-                    cell.alignment = align_left
+                tab = Table(displayName=f"Tablo_{clean_name}", ref=table_range)
 
-            # Otomatik Sütun Genişliği Ayarlama
+                # Modern profesyonel tablo stili (Zebra çizgili ve filtreli)
+                style = TableStyleInfo(
+                    name="TableStyleMedium9",  # Şık antrasit/gri kurumsal tema
+                    showFirstColumn=False,
+                    showLastColumn=False,
+                    showRowStripes=True,
+                    showColumnStripes=False,
+                )
+                tab.tableStyleInfo = style
+                ws.add_table(tab)
+
+            # Sütun genişliklerini içeriğe göre otomatik ayarla
             for col in ws.columns:
                 max_len = 0
                 col_letter = get_column_letter(col[0].column)
                 for cell in col:
                     if cell.value:
                         max_len = max(max_len, len(str(cell.value)))
-                ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
+                ws.column_dimensions[col_letter].width = max(max_len + 5, 15)
 
 
     # --- OTOMATİK EXCEL YEDEKLEME FONKSİYONU ---
