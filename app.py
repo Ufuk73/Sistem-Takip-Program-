@@ -19,15 +19,18 @@ try:
     for folder in [UPLOAD_FOLDER, AUTOSAVE_FOLDER]:
         os.makedirs(folder, exist_ok=True)
 
+
     # --- POSTGRESQL (SUPABASE) BAĞLANTI FONKSİYONU ---
     def get_db_connection():
         return psycopg2.connect(st.secrets["postgres"]["connection_string"])
+
 
     # --- Önbellekli Veri Okuma Fonksiyonları ---
     @st.cache_data
     def veri_cek_parcalar():
         with get_db_connection() as conn:
             return pd.read_sql_query("SELECT * FROM parcalar", conn)
+
 
     @st.cache_data
     def veri_cek_notlar():
@@ -36,12 +39,14 @@ try:
                 "SELECT * FROM gunluk_notlar ORDER BY id DESC", conn
             )
 
+
     @st.cache_data
     def veri_cek_loglar():
         with get_db_connection() as conn:
             return pd.read_sql_query(
                 "SELECT * FROM islem_loglari ORDER BY id DESC", conn
             )
+
 
     # --- TÜRKÇE BÜYÜK HARF DÖNÜŞÜMÜ ---
     def tr_upper(text):
@@ -57,6 +62,7 @@ try:
             .replace("ç", "Ç")
             .upper()
         )
+
 
     # --- OTOMATİK EXCEL YEDEKLEME FONKSİYONU ---
     def otomatik_yedekle():
@@ -97,6 +103,7 @@ try:
         except Exception as ex:
             print(f"Otomatik Excel yedekleme hatası: {ex}")
 
+
     # --- TARİH DÖNÜŞÜM YARDIMCILARI ---
     def str_to_date(tarih_str):
         if not tarih_str or pd.isna(tarih_str):
@@ -108,33 +115,6 @@ try:
         except ValueError:
             return datetime.date.today()
 
-    # --- HIZLI DURUM GÜNCELLEME FONKSİYONU ---
-    def hizli_durum_guncelle(r_id, yeni_durum, parca_sn, parca_adi):
-        bugun_str = datetime.date.today().strftime("%d.%m.%Y")
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    UPDATE parcalar SET durum=%s, onarim_tarih=%s
-                    WHERE id=%s
-                    """,
-                    (yeni_durum, bugun_str, r_id),
-                )
-                cursor.execute(
-                    "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
-                    (
-                        tr_upper(parca_sn),
-                        datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
-                        f"HIZLI DURUM GÜNCELLEME ({yeni_durum})",
-                        f"Hızlı toggle ile durum {yeni_durum} olarak güncellendi.",
-                    ),
-                )
-            conn.commit()
-
-        st.cache_data.clear()
-        log_yaz("HIZLI GÜNCELLEME", f"ID {r_id} ({parca_adi}) -> {yeni_durum}")
-        st.toast(f"✅ {parca_adi} -> {yeni_durum}", icon="⚡")
-        st.rerun()
 
     # --- VERİTABANI BAŞLATMA VE MIGRATION ---
     def veritabanini_hazirla():
@@ -179,6 +159,7 @@ try:
                         )
             conn.commit()
 
+
     def log_yaz(islem_turu, detay):
         try:
             zaman = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -193,9 +174,10 @@ try:
         except Exception as e:
             print(f"Log yazılamadı: {e}")
 
+
     veritabanini_hazirla()
 
-    # --- ÖZEL SİYAH TEMA VE MODERN CSS ---
+    # --- ÖZEL SİYAH TEMA VE ÇERÇEVE CSS ---
     st.markdown(
         """
         <style>
@@ -230,21 +212,6 @@ try:
             padding: 4px 8px;
             border-radius: 4px;
             border: 1px solid #2ecc71;
-        }
-        
-        /* Modern Hızlı Durum Butonları */
-        div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
-            border-radius: 6px !important;
-            padding: 2px 8px !important;
-            font-size: 12px !important;
-            border: 1px solid #2a2a2a !important;
-            background-color: #1a1a1a !important;
-            transition: all 0.2s ease !important;
-        }
-        div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover {
-            border-color: #00adb5 !important;
-            background-color: #252525 !important;
-            transform: translateY(-1px);
         }
         </style>
         """,
@@ -320,7 +287,7 @@ try:
             for k_bilgi in kritik_liste:
                 st.markdown(k_bilgi)
 
-    # Metrik Kartları
+    # Metrikleri Çerçeveli Sütunlar Halinde Yerleştirme
     c1, c2, c3, c4, c5, c6 = st.columns(6)
 
     with c1:
@@ -368,6 +335,7 @@ try:
         "⚙️ Yönetim",
     ])
 
+
     # Dialog ile Düzenleme Fonksiyonu
     @st.dialog("Kayıt Düzenle", width="large")
     def duzenle_dialog(r_id):
@@ -378,7 +346,6 @@ try:
 
         if not df_tekil.empty:
             row = df_tekil.iloc[0]
-
             with st.form(key=f"dialog_form_{r_id}"):
                 e_bolge = st.text_input(
                     "Bölge",
@@ -509,6 +476,7 @@ try:
                     st.toast("✅ Kayıt güncellendi!", icon="💾")
                     st.rerun()
 
+
     # Silme Onay Dialogu
     @st.dialog("Silme Onayı")
     def sil_onay_dialog(r_id, parca_adi, parca_sn):
@@ -527,6 +495,7 @@ try:
             st.rerun()
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
+
 
     # 1. SEKME: TAKİP & FİLTRELEME (KART GÖRÜNÜMÜ)
     with tab_takip:
@@ -650,8 +619,8 @@ try:
                         f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)",
                         expanded=False,
                     ):
-                        h1, h2, h3, h4, h5, h6 = st.columns(
-                            [2, 2, 1.4, 2.4, 0.6, 0.6]
+                        h1, h2, h3, h4, h5 = st.columns(
+                            [2.2, 2.2, 1.8, 0.9, 0.9]
                         )
                         h1.markdown(
                             "<small><b>SİSTEM ADI</b></small>",
@@ -666,13 +635,10 @@ try:
                             unsafe_allow_html=True,
                         )
                         h4.markdown(
-                            "<small><b>⚡ HIZLI DURUM GÜNCELLE</b></small>",
+                            "<small><b>DÜZENLE</b></small>",
                             unsafe_allow_html=True,
                         )
                         h5.markdown(
-                            "<small><b>DÜZ.</b></small>", unsafe_allow_html=True
-                        )
-                        h6.markdown(
                             "<small><b>SİL</b></small>", unsafe_allow_html=True
                         )
                         st.markdown(
@@ -704,8 +670,8 @@ try:
                                 )
                             )
 
-                            c1, c2, c3, c4, c5, c6 = st.columns(
-                                [2, 2, 1.4, 2.4, 0.6, 0.6]
+                            c1, c2, c3, c4, c5 = st.columns(
+                                [2.2, 2.2, 1.8, 0.9, 0.9]
                             )
 
                             with c1:
@@ -724,49 +690,13 @@ try:
                                     unsafe_allow_html=True,
                                 )
 
-                            # ⚡ MODERN KOMPAKT HIZLI DURUM BUTONLARI
                             with c4:
-                                q1, q2, q3, q4 = st.columns(4)
-                                if q1.button(
-                                    "FAAL",
-                                    key=f"q_faal_{r_id}",
-                                    help="Tek Tıkla FAAL Yap",
-                                ):
-                                    hizli_durum_guncelle(
-                                        r_id, "FAAL", p_sn, p_adi
-                                    )
-                                if q2.button(
-                                    "ONARIM",
-                                    key=f"q_onarim_{r_id}",
-                                    help="Tek Tıkla ONARIMDA Yap",
-                                ):
-                                    hizli_durum_guncelle(
-                                        r_id, "ONARIMDA", p_sn, p_adi
-                                    )
-                                if q3.button(
-                                    "YEDEK",
-                                    key=f"q_yedek_{r_id}",
-                                    help="Tek Tıkla YEDEK PARÇA Yap",
-                                ):
-                                    hizli_durum_guncelle(
-                                        r_id, "YEDEK PARÇA", p_sn, p_adi
-                                    )
-                                if q4.button(
-                                    "SEVK",
-                                    key=f"q_sevk_{r_id}",
-                                    help="Tek Tıkla SEVK Yap",
-                                ):
-                                    hizli_durum_guncelle(
-                                        r_id, "SEVK 🚚", p_sn, p_adi
-                                    )
-
-                            with c5:
                                 if st.button(
                                     "✏️", key=f"edit_{r_id}", help="Düzenle"
                                 ):
                                     duzenle_dialog(r_id)
 
-                            with c6:
+                            with c5:
                                 if st.button(
                                     "🗑️", key=f"del_{r_id}", help="Sil"
                                 ):
