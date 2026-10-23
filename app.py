@@ -260,6 +260,20 @@ try:
             border: 1px solid #2ecc71;
         }
         
+        /* Sağ alttaki 'Manage app' butonunu ve Streamlit menülerini gizleme */
+        [data-testid="stStatusWidget"] {
+            display: none !important;
+        }
+        #MainMenu {
+            visibility: hidden !important;
+        }
+        footer {
+            visibility: hidden !important;
+        }
+        .stDeployButton {
+            display: none !important;
+        }
+        
         /* Modern Sağ Alt Köşe İmza (Watermark) */
         .corner-signature {
             position: fixed;
@@ -285,7 +299,7 @@ try:
         unsafe_allow_html=True,
     )
 
-    # Sağ alt köşe imzasını ayrı ve güvenli şekilde basıyoruz
+    # Sağ alt köşe imzası
     st.markdown(
         f'<div class="corner-signature">Design by <b>{GELISTIRICI_ADI}</b> ⚡</div>',
         unsafe_allow_html=True,
