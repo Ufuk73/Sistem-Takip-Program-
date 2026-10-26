@@ -14,7 +14,7 @@ GELISTIRICI_ADI = "Ufuk Atak"
 
 # Sayfa Yapılandırması
 st.set_page_config(
-    page_title="Sistem ve Parça Takip Sistemi", page_icon="⚙️", layout="wide"
+    page_title="Sistem ve Parça Takip Sistemi", page_icon="🚀", layout="wide"
 )
 
 try:
@@ -304,7 +304,7 @@ try:
     # --- ÜST BAŞLIK, SUNUCU DURUMU VE SAĞ ÜST İMZA ---
     col_head1, col_head2, col_head3 = st.columns([4, 3, 3])
     with col_head1:
-        st.markdown("### ⚙️ Sistem ve Parça Takip")
+        st.markdown("### 🚀 Sistem ve Parça Takip")
     with col_head2:
         st.markdown(
             "<div style='padding-top: 8px;'><span class='autosave-badge'>🟢 Stockholm Sunucu Aktif</span></div>",
@@ -612,7 +612,7 @@ try:
             ]
 
             f_bolge = col_f1.selectbox("📍 Bölge Filtresi", bolgeler)
-            f_parca = col_f2.selectbox("⚙️ Parça Filtresi", parcalar)
+            f_parca = col_f2.selectbox("📦 Parça Filtresi", parcalar)
             f_durum = col_f3.selectbox("📊 Durum Filtresi", durumlar)
             f_arama = col_f4.text_input("🔍 Hızlı Arama")
 
@@ -662,9 +662,8 @@ try:
 
             if not filt_df.empty and "bolge" in filt_df.columns:
                 for b_adi, b_grubu in filt_df.groupby("bolge"):
-                    # Tıklanana kadar kapalı gelmesi için expanded=False yapıldı
                     with st.expander(
-                        f"🏢 {b_adi}  ({len(b_grubu)} Kayıt)",
+                        f"📍 {b_adi}  ({len(b_grubu)} Kayıt)",
                         expanded=False,
                     ):
                         for _, row in b_grubu.iterrows():
@@ -691,7 +690,7 @@ try:
                                 st.markdown(
                                     f"""
                                     <div class="item-card">
-                                        <div class="item-title">⚙️ {p_adi} <span class="tag-badge {status_class}">{durum}</span></div>
+                                        <div class="item-title">📦 {p_adi} <span class="tag-badge {status_class}">{durum}</span></div>
                                         <div class="item-sub">
                                             <b>Sistem:</b> {s_adi} (SN: {s_sn}) | <b>Parça SN:</b> <code style='color:#00adb5;'>{p_sn}</code> | <b>PN:</b> {p_pn} | <b>Tarih:</b> {row.get('onarim_tarih', '-')}
                                         </div>
@@ -714,8 +713,10 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE
+    # 2. SEKME: YENİ KAYIT EKLE (BÖLGE GİRİŞ / KAYIT ALANI İYİLEŞTİRİLDİ)
     with tab_ekle:
+        st.markdown("##### 📍 Yeni Bölge ve Envanter Kaydı Oluştur")
+        
         kayitli_bolgeler = (
             sorted(list(df_parcalar["bolge"].dropna().unique()))
             if not df_parcalar.empty and "bolge" in df_parcalar.columns
@@ -723,19 +724,19 @@ try:
         )
 
         secim_tipi = st.radio(
-            "Bölge Giriş",
-            ["Kayıtlı Seç", "Yeni Yaz"],
+            "Bölge Seçim Türü",
+            ["Kayıtlı Bölgeden Seç", "Yeni Bölge Adı Yaz"],
             horizontal=True,
             key="form_secim_tipi",
         )
 
         aktif_bolge = ""
-        if secim_tipi == "Kayıtlı Seç" and len(kayitli_bolgeler) > 0:
+        if secim_tipi == "Kayıtlı Bölgeden Seç" and len(kayitli_bolgeler) > 0:
             aktif_bolge = st.selectbox(
-                "Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge"
+                "Mevcut Bölgeler", kayitli_bolgeler, key="form_secilen_bolge"
             )
         else:
-            aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
+            aktif_bolge = st.text_input("Yeni Bölge Adı Girin", key="form_yeni_bolge")
 
         varsayilan_sistem = ""
         varsayilan_s_pn = ""
@@ -765,7 +766,7 @@ try:
 
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             st.markdown(
-                f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
+                f"🏷️ **Hedef Konum / Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
             )
 
             e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
