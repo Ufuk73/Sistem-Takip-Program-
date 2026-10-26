@@ -713,10 +713,8 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (TEK FORM - ESKİ DÜZEN + PARÇA ADI SEÇİMİ)
+    # 2. SEKME: YENİ KAYIT EKLE (ESKİ DÜZEN - TEK FORM)
     with tab_ekle:
-        st.markdown("##### 📍 Yeni Envanter Kaydı Oluştur")
-        
         kayitli_bolgeler = (
             sorted(list(df_parcalar["bolge"].dropna().unique()))
             if not df_parcalar.empty and "bolge" in df_parcalar.columns
@@ -764,12 +762,6 @@ try:
                     else ""
                 )
 
-        kayitli_parcalar = (
-            sorted(list(df_parcalar["parca_adi"].dropna().unique()))
-            if not df_parcalar.empty and "parca_adi" in df_parcalar.columns
-            else []
-        )
-
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             st.markdown(
                 f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
@@ -780,29 +772,9 @@ try:
             e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
             e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            # Parça Adı için Seçim veya Yeni Yazma İmkanı
-            if len(kayitli_parcalar) > 0:
-                p_secim_tipi = st.radio(
-                    "Parça Adı Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True, key="p_secim_tipi"
-                )
-                if p_secim_tipi == "Kayıtlı Seç":
-                    e_parca = st.selectbox("Parça Adı Seç", kayitli_parcalar, key="form_secilen_parca")
-                else:
-                    e_parca = st.text_input("Yeni Parça Adı", key="form_yeni_parca")
-            else:
-                e_parca = st.text_input("Parça Adı", key="form_yeni_parca")
-
-            # Seçilen parçaya ait son PN'yi bulma
-            varsayilan_p_pn = ""
-            if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
-                eslesen_p = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).upper()]
-                if not eslesen_p.empty:
-                    varsayilan_p_pn = eslesen_p.iloc[-1].get("parca_pn", "")
-                    if pd.isna(varsayilan_p_pn):
-                        varsayilan_p_pn = ""
-
+            e_parca = st.text_input("Parça Adı")
             c3, c4 = st.columns(2)
-            e_p_pn = c3.text_input("Parça PN", value=varsayilan_p_pn)
+            e_p_pn = c3.text_input("Parça PN", value="")
             e_p_sn = c4.text_input("Parça SN", value="")
 
             e_durum = st.selectbox(
