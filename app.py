@@ -1155,10 +1155,10 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (AKILLI EXCEL İÇE AKTARIM)
+    # 8. SEKME: DEPO LİSTESİ (İSİMSİZ KAYIT TEMİZLEME + EXCEL İÇE AKTARIM)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
-        st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **Excel ile toplu malzeme yükleyebilir** veya mevcut depoyu Excel olarak dışarı aktarabilirsin.")
+        st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **Excel ile toplu malzeme yükleyebilir** veya hatalı isimsiz kayıtları temizleyebilirsin.")
         
         df_depo = veri_cek_depo()
 
@@ -1167,10 +1167,22 @@ try:
         d_konumlar = df_depo["bolge"].nunique() if not df_depo.empty and "bolge" in df_depo.columns else 0
         d_cesit = df_depo["parca_adi"].nunique() if not df_depo.empty and "parca_adi" in df_depo.columns else 0
 
-        dc_m1, dc_m2, dc_m3 = st.columns(3)
+        dc_m1, dc_m2, dc_m3, dc_m4 = st.columns([3, 3, 3, 3])
         dc_m1.metric("📦 Toplam Malzeme/Stok", d_toplam)
         dc_m2.metric("📍 Depo / Konum Sayısı", d_konumlar)
         dc_m3.metric("🏷️ Farklı Parça Çeşidi", d_cesit)
+        
+        with dc_m4:
+            st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+            if st.button("🧹 İsimsiz Kayıtları Temizle", type="primary", use_container_width=True, help="Adı İSİMSİZ veya boş olan tüm depo kayıtlarını veritabanından siler"):
+                with get_db_connection() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("DELETE FROM depo_stok WHERE parca_adi ILIKE '%İSİMSİZ%' OR parca_adi = '' OR parca_adi IS NULL")
+                    conn.commit()
+                st.cache_data.clear()
+                log_yaz("DEPO TEMİZLEME", "Hatalı ve İsimsiz depo kayıtları temizlendi.")
+                st.toast("🧹 İsimsiz malzemeler depodan temizlendi!", icon="✨")
+                st.rerun()
 
         st.markdown("<hr style='margin:15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
@@ -1213,7 +1225,6 @@ try:
                             eklenen_sayac = 0
                             tarih_str = datetime.date.today().strftime("%d.%m.%Y")
                             
-                            # Akıllı Sütun Yakalama Yardımcı Fonksiyonu
                             def sutun_bul(df, olasi_isimler):
                                 for col in df.columns:
                                     clean_col = str(col).strip().lower().replace(" ", "_").replace("İ", "i").replace("ı", "i")
@@ -1236,7 +1247,7 @@ try:
                                         b_sn = str(y_row[col_sn]).strip() if col_sn and pd.notna(y_row[col_sn]) else "-"
                                         b_not = str(y_row[col_not]).strip() if col_not and pd.notna(y_row[col_not]) else ""
                                         
-                                        if b_parca and b_parca.lower() != "nan":
+                                        if b_parca and b_parca.lower() != "nan" and "isimsiz" not in b_parca.lower():
                                             cursor.execute(
                                                 """
                                                 INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
