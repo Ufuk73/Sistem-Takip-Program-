@@ -1146,7 +1146,7 @@ try:
                     "İndirilecek Otomatik Yedeği Seç", yedek_dosyalari
                 )
                 yedek_tam_yol = os.path.join(AUTOSAVE_FOLDER, secilen_yedek)
-                with open(yed_tam_yol := yedek_tam_yol, "rb") as yf:
+                with open(yedek_tam_yol, "rb") as yf:
                     st.download_button(
                         "⬇️ Seçilen Yedeği İndir",
                         data=yf,
@@ -1156,10 +1156,10 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (ALFABETİK SIRALAMA + BÖLGE ROZETİ)
+    # 8. SEKME: DEPO LİSTESİ (İSme Göre Gruplama + Alfabetik Sıralama + Çoklu Silme)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
-        st.markdown("Depodaki malzemeleri yönetebilir, Excel dosyanı yükleyip sütunları eşleştirerek depoya aktarabilirsin.")
+        st.markdown("Depodaki malzemeleri isimlerine göre gruplanmış ve alfabetik sıraya göre yönetebilir, çoklu silme işlemi yapabilirsin.")
         
         df_depo = veri_cek_depo()
 
@@ -1358,64 +1358,91 @@ try:
                     )
                 ]
 
-            st.markdown(f"<small style='color:#a0a0a0;'>Listelenen Malzeme Sayısı: {len(filt_depo)}</small>", unsafe_allow_html=True)
+            st.markdown(f"<small style='color:#a0a0a0;'>Listelenen Toplam Kayıt: {len(filt_depo)} | Farklı Malzeme Çeşidi: {filt_depo['parca_adi'].nunique() if not filt_depo.empty else 0}</small>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
-            for _, d_row in filt_depo.iterrows():
-                d_id = d_row["id"]
-                d_bolge = d_row.get("bolge", "-")
-                d_sistem = d_row.get("sistem_adi", "-")
-                d_parca = d_row.get("parca_adi", "-")
-                d_sn = d_row.get("parca_sn", "-")
-                d_pn = d_row.get("parca_pn", "-")
-                d_tarih = d_row.get("ekleme_tarihi", "-")
-                d_aciklama = d_row.get("aciklama", "")
+            secilen_idler = []
+
+            # Parça adlarına göre gruplandırma (Alfabetik sıra ORDER BY parca_adi ASC ile garanti ediliyor)
+            for parca_adi, grup in filt_depo.groupby("parca_adi", sort=False):
+                bolgeler_str = ", ".join(grup["bolge"].dropna().unique())
                 
-                col_d_card, col_d_acts = st.columns([8.2, 1.8])
-                
-                with col_d_card:
-                    aciklama_html = f"<div style='font-size:12px; color:#888; margin-top:4px;'>📝 Not: {d_aciklama}</div>" if pd.notna(d_aciklama) and str(d_aciklama).strip() else ""
-                    
-                    # DEPO STOK yazısının hemen yanında bölge rozeti
-                    bolge_badge = f"<span class='tag-badge' style='background-color:#1e242b; color:#00adb5; border:1px solid #00adb5;'>📍 {d_bolge}</span>" if d_bolge and d_bolge != "-" else ""
-                    
-                    st.markdown(
-                        f"""
-                        <div class="item-card">
-                            <div class="item-title">📦 {d_parca} <span class="tag-badge status-yedek">DEPO STOK</span> {bolge_badge}</div>
-                            <div class="item-sub">
-                                <b>Depo/Bölge:</b> {d_bolge} | <b>Sistem:</b> {d_sistem} | <b>SN:</b> <code style='color:#00adb5;'>{d_sn}</code> | <b>PN:</b> {d_pn} | <b>Tarih:</b> {d_tarih}
-                            </div>
-                            {aciklama_html}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                
-                with col_d_acts:
-                    col_sevk, col_sil = st.columns(2)
-                    with col_sevk:
-                        if st.button("🚚 Sevk", key=f"depo_sevk_{d_id}", help="Sevk Et ve Depodan Çıkar", use_container_width=True):
-                            with get_db_connection() as conn:
-                                with conn.cursor() as cursor:
-                                    if d_sn and d_sn != "-" and d_sn != "":
-                                        cursor.execute("UPDATE parcalar SET durum='SEVK 🚚' WHERE parca_sn=%s", (d_sn,))
-                                    cursor.execute("DELETE FROM depo_stok WHERE id=%s", (d_id,))
-                                conn.commit()
-                            st.cache_data.clear()
-                            log_yaz("DEPO SEVK", f"Depodaki {d_parca} (SN: {d_sn}) sevk edildi.")
-                            st.toast("✅ Malzeme sevk edildi ve depodan çıkarıldı!", icon="🚚")
-                            st.rerun()
-                    with col_sil:
-                        if st.button("🗑️ Sil", key=f"depo_sil_{d_id}", help="Depodan Sil", use_container_width=True):
-                            with get_db_connection() as conn:
-                                with conn.cursor() as cursor:
-                                    cursor.execute("DELETE FROM depo_stok WHERE id=%s", (d_id,))
-                                conn.commit()
-                            st.cache_data.clear()
-                            log_yaz("DEPO SİLME", f"Depodan ID {d_id} ({d_parca}) silindi.")
-                            st.toast("✅ Kayıt depodan silindi.", icon="🗑️")
-                            st.rerun()
-                st.markdown("<hr style='margin:5px 0; border-color: #333;'>", unsafe_allow_html=True)
+                with st.expander(f"📦 {parca_adi}  ({len(grup)} Adet) — [Bölgeler: {bolgeler_str}]", expanded=False):
+                    for _, d_row in grup.iterrows():
+                        d_id = d_row["id"]
+                        d_bolge = d_row.get("bolge", "-")
+                        d_sistem = d_row.get("sistem_adi", "-")
+                        d_parca = d_row.get("parca_adi", "-")
+                        d_sn = d_row.get("parca_sn", "-")
+                        d_pn = d_row.get("parca_pn", "-")
+                        d_tarih = d_row.get("ekleme_tarihi", "-")
+                        d_aciklama = d_row.get("aciklama", "")
+                        
+                        col_chk, col_card, col_acts = st.columns([0.6, 7.6, 1.8])
+                        
+                        with col_chk:
+                            if st.checkbox("Seç", key=f"chk_depo_{d_id}", label_visibility="collapsed"):
+                                secilen_idler.append(d_id)
+
+                        with col_card:
+                            aciklama_html = f"<div style='font-size:12px; color:#888; margin-top:4px;'>📝 Not: {d_aciklama}</div>" if pd.notna(d_aciklama) and str(d_aciklama).strip() else ""
+                            bolge_badge = f"<span class='tag-badge' style='background-color:#1e242b; color:#00adb5; border:1px solid #00adb5;'>📍 {d_bolge}</span>" if d_bolge and d_bolge != "-" else ""
+                            
+                            st.markdown(
+                                f"""
+                                <div class="item-card" style='margin-bottom: 5px; padding: 8px 12px;'>
+                                    <div class="item-title" style='font-size: 14px;'>📦 {d_parca} <span class="tag-badge status-yedek">DEPO STOK</span> {bolge_badge}</div>
+                                    <div class="item-sub" style='font-size: 12px;'>
+                                        <b>Sistem:</b> {d_sistem} | <b>SN:</b> <code style='color:#00adb5;'>{d_sn}</code> | <b>PN:</b> {d_pn} | <b>Tarih:</b> {d_tarih}
+                                    </div>
+                                    {aciklama_html}
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+                        
+                        with col_acts:
+                            col_sevk, col_sil = st.columns(2)
+                            with col_sevk:
+                                if st.button("🚚", key=f"depo_sevk_{d_id}", help="Sevk Et ve Depodan Çıkar", use_container_width=True):
+                                    with get_db_connection() as conn:
+                                        with conn.cursor() as cursor:
+                                            if d_sn and d_sn != "-" and d_sn != "":
+                                                cursor.execute("UPDATE parcalar SET durum='SEVK 🚚' WHERE parca_sn=%s", (d_sn,))
+                                            cursor.execute("DELETE FROM depo_stok WHERE id=%s", (d_id,))
+                                        conn.commit()
+                                    st.cache_data.clear()
+                                    log_yaz("DEPO SEVK", f"Depodaki {d_parca} (SN: {d_sn}) sevk edildi.")
+                                    st.toast("✅ Malzeme sevk edildi!", icon="🚚")
+                                    st.rerun()
+                            with col_sil:
+                                if st.button("🗑️", key=f"depo_sil_{d_id}", help="Depodan Sil", use_container_width=True):
+                                    with get_db_connection() as conn:
+                                        with conn.cursor() as cursor:
+                                            cursor.execute("DELETE FROM depo_stok WHERE id=%s", (d_id,))
+                                        conn.commit()
+                                    st.cache_data.clear()
+                                    log_yaz("DEPO SİLME", f"Depodan ID {d_id} ({d_parca}) silindi.")
+                                    st.toast("✅ Kayıt silindi.", icon="🗑️")
+                                    st.rerun()
+
+            # Toplu / Çoklu Silme İşlem Alanı
+            if secilen_idler:
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_info, col_btn = st.columns([6, 4])
+                col_info.warning(f"⚠️ Seçilen **{len(secilen_idler)}** adet malzemeyi kalıcı olarak silmek üzeresiniz.")
+                if col_btn.button("🗑️ Seçilenleri Toplu Sil", type="primary", use_container_width=True):
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cursor:
+                            if len(secilen_idler) == 1:
+                                cursor.execute("DELETE FROM depo_stok WHERE id = %s", (secilen_idler[0],))
+                            else:
+                                cursor.execute("DELETE FROM depo_stok WHERE id IN %s", (tuple(secilen_idler),))
+                        conn.commit()
+                    st.cache_data.clear()
+                    log_yaz("TOPLU DEPO SİLME", f"{len(secilen_idler)} adet malzeme depodan toplu olarak silindi.")
+                    st.toast(f"✅ Seçilen {len(secilen_idler)} malzeme silindi!", icon="🗑️")
+                    st.rerun()
         else:
             st.success("Depoda şu an kayıtlı malzeme bulunmuyor. 🎉")
 
