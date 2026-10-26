@@ -207,12 +207,6 @@ try:
             conn.commit()
 
             # --- GEÇMİŞTEKİ YEDEK PARÇALARI DEPÓYA SENKRONİZE ETME ---
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT * FROM parcalar WHERE durum = 'YEDEK PARÇA'")
-                eski_yedekler = cursor.fetchall()
-                # Sütun isimleri: id, bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi (sıralama tablonuza göre değişebilir ama güvenli çekelim)
-                
-            # Sütun adlarını bulmak için description kullanıyoruz
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT * FROM parcalar WHERE durum = 'YEDEK PARÇA'")
@@ -223,7 +217,6 @@ try:
                         r_dict = dict(zip(colnames, row))
                         p_sn = r_dict.get("parca_sn", "-")
                         
-                        # Depoda bu parça SN ile zaten kayıtlı mı kontrol et (eğer SN - veya boş değilse)
                         eklenebilir = True
                         if p_sn and p_sn != "-" and p_sn != "":
                             cursor.execute("SELECT id FROM depo_stok WHERE parca_sn = %s", (p_sn,))
@@ -1162,15 +1155,82 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ
+    # 8. SEKME: DEPO LİSTESİ (YENİ MALZEME EKLEME + EXCEL RAPORU)
     with tab_depo:
-        st.subheader("📦 Depo Stok Listesi (Yedek Parçalar)")
-        st.markdown("Sisteme **Yedek Parça** olarak kaydedilen tüm birimler otomatik olarak burada listelenir. Sen sevk edene veya silene kadar burada kalmaya devam eder.")
+        st.subheader("📦 Depo Stok Yönetimi")
+        st.markdown("Depoda bulunan malzemeleri buradan takip edebilir, dışarıdan yeni malzeme ekleyebilir veya ihtiyaç duyduğunda **Excel raporu** olarak indirebilirsin.")
+        
+        # Depo Excel İndirme ve Ekleme Butonu Alanı
+        col_depo_ust1, col_depo_ust2 = st.columns([2, 8])
         
         df_depo = veri_cek_depo()
         
+        with col_depo_ust1:
+            if not df_depo.empty:
+                output_depo = io.BytesIO()
+                with pd.ExcelWriter(output_depo, engine="openpyxl") as writer:
+                    df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)
+                    excel_stili_uygula(writer)
+                depo_excel_data = output_depo.getvalue()
+                
+                st.download_button(
+                    label="📥 Depo Excel Çıkar",
+                    data=depo_excel_data,
+                    file_name=f"depo_stok_raporu_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+        
+        with col_depo_ust2:
+            with st.expander("➕ Depoya Doğrudan Yeni Malzeme Ekle", expanded=False):
+                with st.form("depoya_ekle_form", clear_on_submit=True):
+                    dc1, dc2 = st.columns(2)
+                    d_ bolge_giris = dc1.text_input("Depo Konumu / Bölge (Örn: Merkez Depo)")
+                    d_sistem_giris = dc2.text_input("Sistem / Cihaz Adı (Opsiyonel)", value="GENEL DEPO")
+                    
+                    dc3, dc4 = st.columns(2)
+                    d_parca_giris = dc3.text_input("Malzeme / Parça Adı")
+                    d_pn_giris = dc4.text_input("Parça PN (Opsiyonel)", value="-")
+                    
+                    dc5, dc6 = st.columns(2)
+                    d_sn_giris = dc5.text_input("Parça SN (Opsiyonel)", value="-")
+                    d_not_giris = dc6.text_input("Açıklama / Adet Notu", value="")
+                    
+                    if st.form_submit_button("Depoya Malzeme Kaydet", type="primary"):
+                        if not d_bolge_giris or not d_parca_giris:
+                            st.warning("Bölge/Konum ve Malzeme Adı zorunludur!")
+                        else:
+                            tarih_str = datetime.date.today().strftime("%d.%m.%Y")
+                            with get_db_connection() as conn:
+                                with conn.cursor() as cursor:
+                                    cursor.execute(
+                                        """
+                                        INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        """,
+                                        (
+                                            tr_upper(d_bolge_giris),
+                                            tr_upper(d_sistem_giris),
+                                            "-",
+                                            "-",
+                                            tr_upper(d_parca_giris),
+                                            tr_upper(d_pn_giris),
+                                            tr_upper(d_sn_giris),
+                                            "YEDEK PARÇA",
+                                            tarih_str,
+                                            tr_upper(d_not_giris),
+                                        ),
+                                    )
+                                conn.commit()
+                            st.cache_data.clear()
+                            log_yaz("DEPOYA EKLEME", f"Depoya dışarıdan {d_parca_giris} eklendi.")
+                            st.toast("✅ Malzeme depoya başarıyla eklendi!", icon="📦")
+                            st.rerun()
+
+        st.markdown("<hr style='margin:15px 0 10px 0; border-color: #333;'>", unsafe_allow_html=True)
+        
         if not df_depo.empty:
-            st.info(f"Depoda toplam **{len(df_depo)}** adet yedek parça bulunuyor.")
+            st.info(f"Depoda toplam **{len(df_depo)}** adet malzeme/stok bulunuyor.")
             
             for _, d_row in df_depo.iterrows():
                 d_id = d_row["id"]
@@ -1191,7 +1251,7 @@ try:
                         <div class="item-card">
                             <div class="item-title">📦 {d_parca} <span class="tag-badge status-yedek">DEPO STOK</span></div>
                             <div class="item-sub">
-                                <b>Bölge:</b> {d_bolge} | <b>Sistem:</b> {d_sistem} | <b>Parça SN:</b> <code style='color:#00adb5;'>{d_sn}</code> | <b>PN:</b> {d_pn} | <b>Kayıt Tarihi:</b> {d_tarih}
+                                <b>Depo/Bölge:</b> {d_bolge} | <b>Sistem:</b> {d_sistem} | <b>SN:</b> <code style='color:#00adb5;'>{d_sn}</code> | <b>PN:</b> {d_pn} | <b>Tarih:</b> {d_tarih}
                             </div>
                             {aciklama_html}
                         </div>
@@ -1205,12 +1265,13 @@ try:
                         if st.button("🚚 Sevk", key=f"depo_sevk_{d_id}", help="Sevk Et ve Depodan Çıkar", use_container_width=True):
                             with get_db_connection() as conn:
                                 with conn.cursor() as cursor:
-                                    cursor.execute("UPDATE parcalar SET durum='SEVK 🚚' WHERE parca_sn=%s AND parca_sn != '-' AND parca_sn != ''", (d_sn,))
+                                    if d_sn and d_sn != "-" and d_sn != "":
+                                        cursor.execute("UPDATE parcalar SET durum='SEVK 🚚' WHERE parca_sn=%s", (d_sn,))
                                     cursor.execute("DELETE FROM depo_stok WHERE id=%s", (d_id,))
                                 conn.commit()
                             st.cache_data.clear()
                             log_yaz("DEPO SEVK", f"Depodaki {d_parca} (SN: {d_sn}) sevk edildi.")
-                            st.toast("✅ Parça sevk edildi ve depodan çıkarıldı!", icon="🚚")
+                            st.toast("✅ Malzeme sevk edildi ve depodan çıkarıldı!", icon="🚚")
                             st.rerun()
                     with col_sil:
                         if st.button("🗑️ Sil", key=f"depo_sil_{d_id}", help="Depodan Sil", use_container_width=True):
@@ -1224,7 +1285,7 @@ try:
                             st.rerun()
                 st.markdown("<hr style='margin:5px 0; border-color: #333;'>", unsafe_allow_html=True)
         else:
-            st.success("Depoda şu an bekleyen yedek parça bulunmuyor. 🎉")
+            st.success("Depoda şu an kayıtlı malzeme bulunmuyor. 🎉")
 
 except Exception as e:
     st.error(f"Kritik Hata: {e}")
