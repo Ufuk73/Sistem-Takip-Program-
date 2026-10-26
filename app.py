@@ -1155,7 +1155,7 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (MODERN ARAYÜZ + EXCEL AKTARIM/İÇE AKTARIM)
+    # 8. SEKME: DEPO LİSTESİ (AKILLI EXCEL İÇE AKTARIM)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
         st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **Excel ile toplu malzeme yükleyebilir** veya mevcut depoyu Excel olarak dışarı aktarabilirsin.")
@@ -1174,7 +1174,6 @@ try:
 
         st.markdown("<hr style='margin:15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
-        # Üst İşlem Butonları (Excel Çıkar, Excel'den Yükle, Tekil Ekle)
         depo_islem_col1, depo_islem_col2 = st.columns(2)
 
         with depo_islem_col1:
@@ -1198,7 +1197,7 @@ try:
 
         with depo_islem_col2:
             with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
-                st.markdown("Excel dosyanızda şu sütunlar bulunmalıdır: `bolge`, `parca_adi`, `parca_pn` (opsiyonel), `parca_sn` (opsiyonel), `aciklama` (opsiyonel)")
+                st.markdown("💡 **Esnek Sütun Algılama:** Excel dosyanızdaki parça adı sütunu `parca_adi`, `malzeme_adi`, `urun_adi`, `parca`, `malzeme` veya `ad` olabilir.")
                 yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_yukle")
                 
                 if yuklenen_depo_excel is not None:
@@ -1214,16 +1213,30 @@ try:
                             eklenen_sayac = 0
                             tarih_str = datetime.date.today().strftime("%d.%m.%Y")
                             
+                            # Akıllı Sütun Yakalama Yardımcı Fonksiyonu
+                            def sutun_bul(df, olasi_isimler):
+                                for col in df.columns:
+                                    clean_col = str(col).strip().lower().replace(" ", "_").replace("İ", "i").replace("ı", "i")
+                                    if clean_col in olasi_isimler:
+                                        return col
+                                return None
+
+                            col_parca = sutun_bul(df_yuklenen, ["parca_adi", "malzeme_adi", "urun_adi", "parca", "malzeme", "urun", "ad", "isim", "name", "item"])
+                            col_bolge = sutun_bul(df_yuklenen, ["bolge", "konum", "depo", "lokasyon", "location"])
+                            col_pn = sutun_bul(df_yuklenen, ["parca_pn", "pn", "part_number", "part_no", "parca_kodu", "kod"])
+                            col_sn = sutun_bul(df_yuklenen, ["parca_sn", "sn", "serial_number", "serial_no", "seri_no", "seri_numarasi"])
+                            col_not = sutun_bul(df_yuklenen, ["aciklama", "not", "detay", "description", "remark"])
+
                             with get_db_connection() as conn:
                                 with conn.cursor() as cursor:
                                     for _, y_row in df_yuklenen.iterrows():
-                                        b_bolge = str(y_row.get("bolge", "MERKEZ DEPO"))
-                                        b_parca = str(y_row.get("parca_adi", "İsimsiz Malzeme"))
-                                        b_pn = str(y_row.get("parca_pn", "-"))
-                                        b_sn = str(y_row.get("parca_sn", "-"))
-                                        b_not = str(y_row.get("aciklama", ""))
+                                        b_parca = str(y_row[col_parca]).strip() if col_parca and pd.notna(y_row[col_parca]) else ""
+                                        b_bolge = str(y_row[col_bolge]).strip() if col_bolge and pd.notna(y_row[col_bolge]) else "MERKEZ DEPO"
+                                        b_pn = str(y_row[col_pn]).strip() if col_pn and pd.notna(y_row[col_pn]) else "-"
+                                        b_sn = str(y_row[col_sn]).strip() if col_sn and pd.notna(y_row[col_sn]) else "-"
+                                        b_not = str(y_row[col_not]).strip() if col_not and pd.notna(y_row[col_not]) else ""
                                         
-                                        if pd.notna(b_bolge) and pd.notna(b_parca) and b_parca != "nan":
+                                        if b_parca and b_parca.lower() != "nan":
                                             cursor.execute(
                                                 """
                                                 INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
