@@ -1193,7 +1193,7 @@ try:
                 if not df_depo.empty:
                     output_depo = io.BytesIO()
                     with pd.ExcelWriter(output_depo, engine="openpyxl") as writer:
-                        df_depo.to_excel(output_depo, sheet_name="Depo_Stok", index=False)
+                        df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)  # <-- DÜZELTİLDİ (writer kullanıldı)
                         excel_stili_uygula(writer)
                     depo_excel_data = output_depo.getvalue()
                     
@@ -1223,7 +1223,6 @@ try:
                         
                         kolonlar = list(df_yuklenen.columns)
                         
-                        # Akıllı Varsayılan Tahminler
                         def tahmin_index(liste, anahtar_kelimeler):
                             for idx, col in enumerate(liste):
                                 c_low = str(col).lower()
