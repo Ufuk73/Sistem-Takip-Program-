@@ -46,6 +46,14 @@ try:
 
 
     @st.cache_data
+    def veri_cek_arizalar():
+        with get_db_connection() as conn:
+            return pd.read_sql_query(
+                "SELECT * FROM arizali_birimler ORDER BY id DESC", conn
+            )
+
+
+    @st.cache_data
     def veri_cek_loglar():
         with get_db_connection() as conn:
             return pd.read_sql_query(
@@ -122,6 +130,7 @@ try:
 
             df_p = veri_cek_parcalar()
             df_n = veri_cek_notlar()
+            df_a = veri_cek_arizalar()
             df_l = veri_cek_loglar()
             with get_db_connection() as conn:
                 df_g = pd.read_sql_query("SELECT * FROM parca_gecmis", conn)
@@ -129,6 +138,7 @@ try:
             with pd.ExcelWriter(backup_path, engine="openpyxl") as writer:
                 df_p.to_excel(writer, sheet_name="Parcalar", index=False)
                 df_n.to_excel(writer, sheet_name="Gunluk_Notlar", index=False)
+                df_a.to_excel(writer, sheet_name="Arizali_Birimler", index=False)
                 df_l.to_excel(writer, sheet_name="Loglar", index=False)
                 df_g.to_excel(writer, sheet_name="Parca_Gecmisi", index=False)
                 excel_stili_uygula(writer)
@@ -176,33 +186,11 @@ try:
                     "CREATE TABLE IF NOT EXISTS gunluk_notlar (id SERIAL PRIMARY KEY, tarih TEXT, bolge TEXT, detay TEXT)"
                 )
                 cursor.execute(
+                    "CREATE TABLE IF NOT EXISTS arizali_birimler (id SERIAL PRIMARY KEY, tarih TEXT, bolge TEXT, bildirim TEXT)"
+                )
+                cursor.execute(
                     "CREATE TABLE IF NOT EXISTS parca_gecmis (id SERIAL PRIMARY KEY, parca_sn TEXT, tarih TEXT, islem TEXT, aciklama TEXT)"
                 )
-
-                beklenen_kolonlar = {
-                    "bolge": "TEXT",
-                    "sistem_adi": "TEXT",
-                    "sistem_pn": "TEXT",
-                    "sistem_sn": "TEXT",
-                    "parca_adi": "TEXT",
-                    "parca_pn": "TEXT",
-                    "parca_sn": "TEXT",
-                    "durum": "TEXT",
-                    "onarim_tarih": "TEXT",
-                    "aciklama": "TEXT",
-                    "dosya_adi": "TEXT",
-                }
-
-                cursor.execute(
-                    "SELECT column_name FROM information_schema.columns WHERE table_name='parcalar'"
-                )
-                mevcut_kolonlar = [kol[0] for kol in cursor.fetchall()]
-
-                for kolon_adi, kolon_tipi in beklenen_kolonlar.items():
-                    if kolon_adi not in mevcut_kolonlar:
-                        cursor.execute(
-                            f"ALTER TABLE parcalar ADD COLUMN {kolon_adi} {kolon_tipi}"
-                        )
             conn.commit()
 
 
@@ -393,12 +381,13 @@ try:
         unsafe_allow_html=True,
     )
 
-    tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
+    tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_arizali, tab_yonetim = st.tabs([
         "📋 Kart Görünümü",
         "➕ Yeni Kayıt",
         "📝 Günlük Notlar",
         "📜 Loglar",
         "🔍 Parça Geçmişi",
+        "⚠️ Arızalı Birimler",
         "⚙️ Yönetim",
     ])
 
@@ -1007,7 +996,83 @@ try:
             else:
                 st.info("Bu seri numarasına ait geçmiş işlem kaydı bulunamadı.")
 
-    # 6. SEKME: YÖNETİM
+    # 6. SEKME: ARIZALI BİRİMLER (HIZLI BİLDİRİM)
+    with tab_arizali:
+        st.subheader("⚠️ Bölgesel Arıza Bildirimleri")
+        st.markdown(
+            "Seri numarası veya parça kodu girmeden, doğrudan bölge seçip arıza bildirimi ekleyebilir veya çözülenleri listeden kaldırabilirsiniz."
+        )
+
+        kayitli_ariza_bolgeler = (
+            sorted(list(df_parcalar["bolge"].dropna().unique()))
+            if not df_parcalar.empty and "bolge" in df_parcalar.columns
+            else []
+        )
+
+        with st.form("hizli_ariza_form", clear_on_submit=True):
+            st.markdown("##### ➕ Yeni Arıza Bildirimi Gir")
+            
+            a_secim_tipi = st.radio(
+                "Bölge Seçim Tipi", ["Kayıtlı Bölge Seç", "Yeni Bölge Yaz"], horizontal=True
+            )
+            
+            if a_secim_tipi == "Kayıtlı Bölge Seç" and len(kayitli_ariza_bolgeler) > 0:
+                a_bolge = st.selectbox("Bölge", kayitli_ariza_bolgeler)
+            else:
+                a_bolge = st.text_input("Bölge Adı")
+
+            a_bildirim = st.text_area("Arıza Bildirimi (Örn: HSY arızası mevcut)")
+
+            if st.form_submit_button("Bildirimi Kaydet", type="primary"):
+                if not a_bolge or not a_bildirim:
+                    st.warning("Bölge ve arıza bildirimi boş olamaz!")
+                else:
+                    tarih_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cursor:
+                            cursor.execute(
+                                "INSERT INTO arizali_birimler (tarih, bolge, bildirim) VALUES (%s, %s, %s)",
+                                (tarih_str, tr_upper(a_bolge), tr_upper(a_bildirim)),
+                            )
+                        conn.commit()
+
+                    st.cache_data.clear()
+                    log_yaz("ARIZA BİLDİRİMİ", f"Bölge: {a_bolge} - {a_bildirim}")
+                    st.toast("✅ Arıza bildirimi eklendi!", icon="⚠️")
+                    st.rerun()
+
+        st.markdown("---")
+        st.markdown("##### 📋 Aktif Arıza Bildirimleri Listesi")
+
+        df_arizalar = veri_cek_arizalar()
+        if not df_arizalar.empty:
+            st.warning(f"Sistemde toplam **{len(df_arizalar)}** adet aktif arıza bildirimi bulunuyor.")
+            
+            for _, a_row in df_arizalar.iterrows():
+                a_id = a_row["id"]
+                col_b1, col_b2 = st.columns([8, 2])
+                
+                with col_b1:
+                    st.markdown(
+                        f"**📍 {a_row.get('bolge', '-')}** — <small style='color:#a0a0a0;'>{a_row.get('tarih', '-')}</small><br>"
+                        f"🔴 {a_row.get('bildirim', '-')}",
+                        unsafe_allow_html=True
+                    )
+                with col_b2:
+                    if st.button("Çözüldü / Kaldır", key=f"ariza_sil_{a_id}", type="primary"):
+                        with get_db_connection() as conn:
+                            with conn.cursor() as cursor:
+                                cursor.execute("DELETE FROM arizali_birimler WHERE id=%s", (a_id,))
+                            conn.commit()
+                        st.cache_data.clear()
+                        log_yaz("ARIZA ÇÖZÜLDÜ", f"ID {a_id} numaralı arıza bildirimi kaldırıldı.")
+                        st.toast("✅ Arıza kaldırıldı.", icon="🗑️")
+                        st.rerun()
+                st.markdown("<hr style='margin:5px 0; border-color: #333;'>", unsafe_allow_html=True)
+        else:
+            st.success("Harika! Aktif arıza bildirimi bulunmuyor. 🎉")
+
+    # 7. SEKME: YÖNETİM
     with tab_yonetim:
         st.subheader("⚙️ Veritabanı ve Yedek Yönetimi")
         col_y1, col_y2 = st.columns(2)
@@ -1020,6 +1085,7 @@ try:
                 output = io.BytesIO()
                 df_p = veri_cek_parcalar()
                 df_n = veri_cek_notlar()
+                df_a = veri_cek_arizalar()
                 df_l = veri_cek_loglar()
                 with get_db_connection() as conn:
                     df_g = pd.read_sql_query("SELECT * FROM parca_gecmis", conn)
@@ -1029,6 +1095,7 @@ try:
                     df_n.to_excel(
                         writer, sheet_name="Gunluk_Notlar", index=False
                     )
+                    df_a.to_excel(writer, sheet_name="Arizali_Birimler", index=False)
                     df_l.to_excel(writer, sheet_name="Loglar", index=False)
                     df_g.to_excel(
                         writer, sheet_name="Parca_Gecmisi", index=False
