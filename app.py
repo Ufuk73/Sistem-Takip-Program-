@@ -1155,10 +1155,10 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (İSİMSİZ KAYIT TEMİZLEME + EXCEL İÇE AKTARIM)
+    # 8. SEKME: DEPO LİSTESİ (AKILLI SÜTUN ALGILAMA + İSİMSİZ TEMİZLEME)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
-        st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **Excel ile toplu malzeme yükleyebilir** veya hatalı isimsiz kayıtları temizleyebilirsin.")
+        st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **`tanımı`, `pn`, `sn`, `not`** başlıklı Excel/CSV dosyalarını topluca yükleyebilirsin.")
         
         df_depo = veri_cek_depo()
 
@@ -1174,7 +1174,7 @@ try:
         
         with dc_m4:
             st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
-            if st.button("🧹 İsimsiz Kayıtları Temizle", type="primary", use_container_width=True, help="Adı İSİMSİZ veya boş olan tüm depo kayıtlarını veritabanından siler"):
+            if st.button("🧹 İsimsiz Kayıtları Temizle", type="primary", use_container_width=True, help="Adı İSİMSİZ veya boş olan tüm depo kayıtlarını siler"):
                 with get_db_connection() as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("DELETE FROM depo_stok WHERE parca_adi ILIKE '%İSİMSİZ%' OR parca_adi = '' OR parca_adi IS NULL")
@@ -1209,7 +1209,7 @@ try:
 
         with depo_islem_col2:
             with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
-                st.markdown("💡 **Esnek Sütun Algılama:** Excel dosyanızdaki parça adı sütunu `parca_adi`, `malzeme_adi`, `urun_adi`, `parca`, `malzeme` veya `ad` olabilir.")
+                st.markdown("💡 **Desteklenen Başlıklar:** `tanımı` (veya parça adı), `pn`, `sn`, `not` (veya açıklama), `bölge`")
                 yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_yukle")
                 
                 if yuklenen_depo_excel is not None:
@@ -1232,11 +1232,12 @@ try:
                                         return col
                                 return None
 
-                            col_parca = sutun_bul(df_yuklenen, ["parca_adi", "malzeme_adi", "urun_adi", "parca", "malzeme", "urun", "ad", "isim", "name", "item"])
+                            # 'tanımı' ve benzeri tüm varyasyonları ekledik
+                            col_parca = sutun_bul(df_yuklenen, ["tanimi", "tanim", "tanım", "parca_adi", "malzeme_adi", "urun_adi", "parca", "malzeme", "urun", "ad", "isim", "name", "item"])
                             col_bolge = sutun_bul(df_yuklenen, ["bolge", "konum", "depo", "lokasyon", "location"])
-                            col_pn = sutun_bul(df_yuklenen, ["parca_pn", "pn", "part_number", "part_no", "parca_kodu", "kod"])
-                            col_sn = sutun_bul(df_yuklenen, ["parca_sn", "sn", "serial_number", "serial_no", "seri_no", "seri_numarasi"])
-                            col_not = sutun_bul(df_yuklenen, ["aciklama", "not", "detay", "description", "remark"])
+                            col_pn = sutun_bul(df_yuklenen, ["pn", "parca_pn", "part_number", "part_no", "parca_kodu", "kod"])
+                            col_sn = sutun_bul(df_yuklenen, ["sn", "parca_sn", "serial_number", "serial_no", "seri_no", "seri_numarasi"])
+                            col_not = sutun_bul(df_yuklenen, ["not", "aciklama", "detay", "description", "remark"])
 
                             with get_db_connection() as conn:
                                 with conn.cursor() as cursor:
