@@ -1155,83 +1155,171 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (YENİ MALZEME EKLEME + EXCEL RAPORU)
+    # 8. SEKME: DEPO LİSTESİ (MODERN ARAYÜZ + EXCEL AKTARIM/İÇE AKTARIM)
     with tab_depo:
-        st.subheader("📦 Depo Stok Yönetimi")
-        st.markdown("Depoda bulunan malzemeleri buradan takip edebilir, dışarıdan yeni malzeme ekleyebilir veya ihtiyaç duyduğunda **Excel raporu** olarak indirebilirsin.")
-        
-        col_depo_ust1, col_depo_ust2 = st.columns([2, 8])
+        st.subheader("📦 Modern Depo ve Stok Yönetimi")
+        st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **Excel ile toplu malzeme yükleyebilir** veya mevcut depoyu Excel olarak dışarı aktarabilirsin.")
         
         df_depo = veri_cek_depo()
-        
-        with col_depo_ust1:
-            if not df_depo.empty:
-                output_depo = io.BytesIO()
-                with pd.ExcelWriter(output_depo, engine="openpyxl") as writer:
-                    df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)
-                    excel_stili_uygula(writer)
-                depo_excel_data = output_depo.getvalue()
+
+        # Depo İstatistik / Bilgi Paneli
+        d_toplam = len(df_depo)
+        d_konumlar = df_depo["bolge"].nunique() if not df_depo.empty and "bolge" in df_depo.columns else 0
+        d_cesit = df_depo["parca_adi"].nunique() if not df_depo.empty and "parca_adi" in df_depo.columns else 0
+
+        dc_m1, dc_m2, dc_m3 = st.columns(3)
+        dc_m1.metric("📦 Toplam Malzeme/Stok", d_toplam)
+        dc_m2.metric("📍 Depo / Konum Sayısı", d_konumlar)
+        dc_m3.metric("🏷️ Farklı Parça Çeşidi", d_cesit)
+
+        st.markdown("<hr style='margin:15px 0; border-color: #333;'>", unsafe_allow_html=True)
+
+        # Üst İşlem Butonları (Excel Çıkar, Excel'den Yükle, Tekil Ekle)
+        depo_ islem_col1, depo_islem_col2 = st.columns(2)
+
+        with depo_islem_col1:
+            with st.expander("📥 Excel Raporu Çıkar", expanded=False):
+                if not df_depo.empty:
+                    output_depo = io.BytesIO()
+                    with pd.ExcelWriter(output_depo, engine="openpyxl") as writer:
+                        df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)
+                        excel_stili_uygula(writer)
+                    depo_excel_data = output_depo.getvalue()
+                    
+                    st.download_button(
+                        label="💾 Depo Stok Raporunu İndir (.xlsx)",
+                        data=depo_excel_data,
+                        file_name=f"depo_stok_raporu_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                else:
+                    st.info("Depoda indirilecek malzeme bulunmuyor.")
+
+        with depo_islem_col2:
+            with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
+                st.markdown("Excel dosyanızda şu sütunlar bulunmalıdır: `bolge`, `parca_adi`, `parca_pn` (opsiyonel), `parca_sn` (opsiyonel), `aciklama` (opsiyonel)")
+                yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_ yukle")
                 
-                st.download_button(
-                    label="📥 Depo Excel Çıkar",
-                    data=depo_excel_data,
-                    file_name=f"depo_stok_raporu_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                )
-        
-        with col_depo_ust2:
-            with st.expander("➕ Depoya Doğrudan Yeni Malzeme Ekle", expanded=False):
-                with st.form("depoya_ekle_form", clear_on_submit=True):
-                    dc1, dc2 = st.columns(2)
-                    d_bolge_giris = dc1.text_input("Depo Konumu / Bölge (Örn: Merkez Depo)")
-                    d_sistem_giris = dc2.text_input("Sistem / Cihaz Adı (Opsiyonel)", value="GENEL DEPO")
-                    
-                    dc3, dc4 = st.columns(2)
-                    d_parca_giris = dc3.text_input("Malzeme / Parça Adı")
-                    d_pn_giris = dc4.text_input("Parça PN (Opsiyonel)", value="-")
-                    
-                    dc5, dc6 = st.columns(2)
-                    d_sn_giris = dc5.text_input("Parça SN (Opsiyonel)", value="-")
-                    d_not_giris = dc6.text_input("Açıklama / Adet Notu", value="")
-                    
-                    if st.form_submit_button("Depoya Malzeme Kaydet", type="primary"):
-                        if not d_bolge_giris or not d_parca_giris:
-                            st.warning("Bölge/Konum ve Malzeme Adı zorunludur!")
+                if yuklenen_depo_excel is not None:
+                    try:
+                        if yuklenen_depo_excel.name.endswith(".csv"):
+                            df_yuklenen = pd.read_csv(yuklenen_depo_excel)
                         else:
+                            df_yuklenen = pd.read_excel(yuklenen_depo_excel)
+                        
+                        st.dataframe(df_yuklenen.head(3), use_container_width=True)
+                        
+                        if st.button("Verileri Depoya Aktarmaya Başla", type="primary"):
+                            eklenen_sayac = 0
                             tarih_str = datetime.date.today().strftime("%d.%m.%Y")
+                            
                             with get_db_connection() as conn:
                                 with conn.cursor() as cursor:
-                                    cursor.execute(
-                                        """
-                                        INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                        """,
-                                        (
-                                            tr_upper(d_bolge_giris),
-                                            tr_upper(d_sistem_giris),
-                                            "-",
-                                            "-",
-                                            tr_upper(d_parca_giris),
-                                            tr_upper(d_pn_giris),
-                                            tr_upper(d_sn_giris),
-                                            "YEDEK PARÇA",
-                                            tarih_str,
-                                            tr_upper(d_not_giris),
-                                        ),
-                                    )
-                                conn.commit()
+                                    for _, y_row in df_yuklenen.iterrows():
+                                        b_bolge = str(y_row.get("bolge", "MERKEZ DEPO"))
+                                        b_parca = str(y_row.get("parca_adi", "İsimsiz Malzeme"))
+                                        b_pn = str(y_row.get("parca_pn", "-"))
+                                        b_sn = str(y_row.get("parca_sn", "-"))
+                                        b_not = str(y_row.get("aciklama", ""))
+                                        
+                                        if pd.notna(b_bolge) and pd.notna(b_parca) and b_parca != "nan":
+                                            cursor.execute(
+                                                """
+                                                INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
+                                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                                """,
+                                                (
+                                                    tr_upper(b_bolge),
+                                                    "GENEL DEPO",
+                                                    "-",
+                                                    "-",
+                                                    tr_upper(b_parca),
+                                                    tr_upper(b_pn),
+                                                    tr_upper(b_sn),
+                                                    "YEDEK PARÇA",
+                                                    tarih_str,
+                                                    tr_upper(b_not),
+                                                ),
+                                            )
+                                            eklenen_sayac += 1
+                                    conn.commit()
+                            
                             st.cache_data.clear()
-                            log_yaz("DEPOYA EKLEME", f"Depoya dışarıdan {d_parca_giris} eklendi.")
-                            st.toast("✅ Malzeme depoya başarıyla eklendi!", icon="📦")
+                            log_yaz("TOPLU DEPO YÜKLEME", f"Excel'den {eklenen_sayac} adet malzeme depoya eklendi.")
+                            st.success(f"🎉 Başarıyla {eklenen_sayac} malzeme depoya eklendi!")
                             st.rerun()
+                    except Exception as ex:
+                        st.error(f"Excel okunurken hata oluştu: {ex}")
 
-        st.markdown("<hr style='margin:15px 0 10px 0; border-color: #333;'>", unsafe_allow_html=True)
-        
+        # Tekil Malzeme Ekleme Alanı
+        with st.expander("➕ Tekil Depo Malzemesi Ekle", expanded=False):
+            with st.form("depoya_ekle_form", clear_on_submit=True):
+                dc1, dc2 = st.columns(2)
+                d_bolge_giris = dc1.text_input("Depo Konumu / Bölge (Örn: Merkez Depo)")
+                d_sistem_giris = dc2.text_input("Sistem / Cihaz Adı (Opsiyonel)", value="GENEL DEPO")
+                
+                dc3, dc4 = st.columns(2)
+                d_parca_giris = dc3.text_input("Malzeme / Parça Adı")
+                d_pn_giris = dc4.text_input("Parça PN (Opsiyonel)", value="-")
+                
+                dc5, dc6 = st.columns(2)
+                d_sn_giris = dc5.text_input("Parça SN (Opsiyonel)", value="-")
+                d_not_giris = dc6.text_input("Açıklama / Adet Notu", value="")
+                
+                if st.form_submit_button("Depoya Malzeme Kaydet", type="primary"):
+                    if not d_bolge_giris or not d_parca_giris:
+                        st.warning("Bölge/Konum ve Malzeme Adı zorunludur!")
+                    else:
+                        tarih_str = datetime.date.today().strftime("%d.%m.%Y")
+                        with get_db_connection() as conn:
+                            with conn.cursor() as cursor:
+                                cursor.execute(
+                                    """
+                                    INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    """,
+                                    (
+                                        tr_upper(d_bolge_giris),
+                                        tr_upper(d_sistem_giris),
+                                        "-",
+                                        "-",
+                                        tr_upper(d_parca_giris),
+                                        tr_upper(d_pn_giris),
+                                        tr_upper(d_sn_giris),
+                                        "YEDEK PARÇA",
+                                        tarih_str,
+                                        tr_upper(d_not_giris),
+                                    ),
+                                )
+                            conn.commit()
+                        st.cache_data.clear()
+                        log_yaz("DEPOYA EKLEME", f"Depoya dışarıdan {d_parca_giris} eklendi.")
+                        st.toast("✅ Malzeme depoya başarıyla eklendi!", icon="📦")
+                        st.rerun()
+
+        st.markdown("<hr style='margin:15px 0; border-color: #333;'>", unsafe_allow_html=True)
+
+        # Depo Arama ve Filtreleme Çubuğu
+        depo_arama = st.text_input("🔍 Depoda Malzeme Ara (Parça Adı, SN, PN veya Bölge)")
+
         if not df_depo.empty:
-            st.info(f"Depoda toplam **{len(df_depo)}** adet malzeme/stok bulunuyor.")
-            
-            for _, d_row in df_depo.iterrows():
+            filt_depo = df_depo.copy()
+            if depo_arama:
+                da_upper = tr_upper(depo_arama)
+                filt_depo = filt_depo[
+                    filt_depo.apply(
+                        lambda row: row.astype(str)
+                        .str.upper()
+                        .str.contains(da_upper)
+                        .any(),
+                        axis=1,
+                    )
+                ]
+
+            st.markdown(f"<small style='color:#a0a0a0;'>Listelenen Malzeme Sayısı: {len(filt_depo)}</small>", unsafe_allow_html=True)
+
+            for _, d_row in filt_depo.iterrows():
                 d_id = d_row["id"]
                 d_bolge = d_row.get("bolge", "-")
                 d_sistem = d_row.get("sistem_adi", "-")
