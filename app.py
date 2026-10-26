@@ -1175,7 +1175,7 @@ try:
         st.markdown("<hr style='margin:15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
         # Üst İşlem Butonları (Excel Çıkar, Excel'den Yükle, Tekil Ekle)
-        depo_ islem_col1, depo_islem_col2 = st.columns(2)
+        depo_islem_col1, depo_islem_col2 = st.columns(2)
 
         with depo_islem_col1:
             with st.expander("📥 Excel Raporu Çıkar", expanded=False):
@@ -1199,7 +1199,7 @@ try:
         with depo_islem_col2:
             with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
                 st.markdown("Excel dosyanızda şu sütunlar bulunmalıdır: `bolge`, `parca_adi`, `parca_pn` (opsiyonel), `parca_sn` (opsiyonel), `aciklama` (opsiyonel)")
-                yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_ yukle")
+                yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_yukle")
                 
                 if yuklenen_depo_excel is not None:
                     try:
