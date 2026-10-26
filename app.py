@@ -382,7 +382,7 @@ try:
     )
 
     tab_takip, tab_ekle, tab_arizali, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
-        "📋 Kart Görünümü",
+        "📊 Envanter & Durum Takip",
         "➕ Yeni Kayıt",
         "⚠️ Arızalı Birimler",
         "📝 Günlük Notlar",
@@ -473,7 +473,7 @@ try:
                     "SEVK 🚚",
                     "GAYRI FAAL",
                 ]
-                d_idx = d_list.index(mevcut_d) if mevcut_d in d_list else 0
+                d_idx = d_list.index(mevcut_d) if mevcud_d in d_list else 0
                 e_durum = st.selectbox("Durum", d_list, index=d_idx)
 
                 varsayilan_tarih = str_to_date(row.get("onarim_tarih"))
@@ -553,7 +553,7 @@ try:
             st.rerun()
 
 
-    # 1. SEKME: TAKİP & FİLTRELEME (KART GÖRÜNÜMÜ)
+    # 1. SEKME: ENVANTER & DURUM TAKİP
     with tab_takip:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -1004,137 +1004,4 @@ try:
                     with get_db_connection() as conn:
                         with conn.cursor() as cursor:
                             cursor.execute(
-                                "INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (%s, %s, %s)",
-                                (tarih_str, n_bolge, tr_upper(n_detay)),
-                            )
-                        conn.commit()
-                    st.cache_data.clear()
-                    log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
-                    st.toast("✅ Not başarıyla kaydedildi!", icon="📝")
-                    st.rerun()
-
-        df_notlar = veri_cek_notlar()
-        if not df_notlar.empty:
-            st.markdown("---")
-            for _, nrow in df_notlar.iterrows():
-                st.markdown(
-                    f"**📅 {nrow.get('tarih', '-')} | 📍 {nrow.get('bolge', '-')}**"
-                )
-                st.info(nrow.get("detay", ""))
-        else:
-            st.info("Henüz kaydedilmiş günlük not bulunmuyor.")
-
-    # 5. SEKME: LOGLAR
-    with tab_loglar:
-        st.subheader("📜 Sistem İşlem Logları")
-        df_loglar = veri_cek_loglar()
-        if not df_loglar.empty:
-            st.dataframe(
-                df_loglar, use_container_width=True, hide_index=True
-            )
-            if st.button("Tüm Logları Temizle", type="primary"):
-                with get_db_connection() as conn:
-                    with conn.cursor() as cursor:
-                        cursor.execute("DELETE FROM islem_loglari")
-                    conn.commit()
-                st.cache_data.clear()
-                st.toast("🧹 Loglar temizlendi.")
-                st.rerun()
-        else:
-            st.info("Kayıtlı log bulunmuyor.")
-
-    # 6. SEKME: PARÇA GEÇMİŞİ
-    with tab_gecmis:
-        st.subheader("🔍 Parça Seri Numarası Geçmişi")
-        s_ara_sn = st.text_input(
-            "Aranacak Parça Seri Numarası (SN)", key="parca_gecmis_input"
-        )
-        if s_ara_sn:
-            with get_db_connection() as conn:
-                df_gcek = pd.read_sql_query(
-                    "SELECT * FROM parca_gecmis WHERE parca_sn ILIKE %s ORDER BY id DESC",
-                    conn,
-                    params=(f"%{s_ara_sn.strip()}%",),
-                )
-            if not df_gcek.empty:
-                st.success(
-                    f"`{s_ara_sn}` seri numaralı parça için {len(df_gcek)} adet işlem geçmişi bulundu:"
-                )
-                for _, grow in df_gcek.iterrows():
-                    st.markdown(
-                        f"• **{grow.get('tarih', '-')}** — `{grow.get('islem', '-')}`"
-                    )
-                    if pd.notna(grow.get("aciklama")) and str(
-                        grow.get("aciklama")
-                    ).strip():
-                        st.caption(f"Açıklama: {grow.get('aciklama')}")
-                    st.markdown("---")
-            else:
-                st.info("Bu seri numarasına ait geçmiş işlem kaydı bulunamadı.")
-
-    # 7. SEKME: YÖNETİM
-    with tab_yonetim:
-        st.subheader("⚙️ Veritabanı ve Yedek Yönetimi")
-        col_y1, col_y2 = st.columns(2)
-
-        with col_y1:
-            st.markdown("##### 📥 Excel Yedek İndir")
-            if st.button(
-                "Anlık Excel Raporu Oluştur ve İndir", type="primary"
-            ):
-                output = io.BytesIO()
-                df_p = veri_cek_parcalar()
-                df_n = veri_cek_notlar()
-                df_a = veri_cek_arizalar()
-                df_l = veri_cek_loglar()
-                with get_db_connection() as conn:
-                    df_g = pd.read_sql_query("SELECT * FROM parca_gecmis", conn)
-
-                with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                    df_p.to_excel(writer, sheet_name="Parcalar", index=False)
-                    df_n.to_excel(
-                        writer, sheet_name="Gunluk_Notlar", index=False
-                    )
-                    df_a.to_excel(writer, sheet_name="Arizali_Birimler", index=False)
-                    df_l.to_excel(writer, sheet_name="Loglar", index=False)
-                    df_g.to_excel(
-                        writer, sheet_name="Parca_Gecmisi", index=False
-                    )
-                    excel_stili_uygula(writer)
-
-                processed_data = output.getvalue()
-                st.download_button(
-                    label="💾 Excel Dosyasını İndir",
-                    data=processed_data,
-                    file_name=f"sistem_parca_takip_yedek_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
-
-        with col_y2:
-            st.markdown("##### 📂 Otomatik Yedekler")
-            yedek_dosyalari = sorted(
-                [
-                    f
-                    for f in os.listdir(AUTOSAVE_FOLDER)
-                    if f.endswith(".xlsx")
-                ],
-                reverse=True,
-            )
-            if yedek_dosyalari:
-                secilen_yedek = st.selectbox(
-                    "İndirilecek Otomatik Yedeği Seç", yedek_dosyalari
-                )
-                yedek_tam_yol = os.path.join(AUTOSAVE_FOLDER, secilen_yedek)
-                with open(yedek_tam_yol, "rb") as yf:
-                    st.download_button(
-                        "⬇️ Seçilen Yedeği İndir",
-                        data=yf,
-                        file_name=secilen_yedek,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    )
-            else:
-                st.info("Henüz otomatik yedek bulunmuyor.")
-
-except Exception as e:
-    st.error(f"Kritik Hata: {e}")
-    st.code(traceback.format_exc())
+                                "INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (%s, %s, %
