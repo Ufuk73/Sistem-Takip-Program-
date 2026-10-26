@@ -206,6 +206,51 @@ try:
                 )
             conn.commit()
 
+            # --- GEÇMİŞTEKİ YEDEK PARÇALARI DEPÓYA SENKRONİZE ETME ---
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM parcalar WHERE durum = 'YEDEK PARÇA'")
+                eski_yedekler = cursor.fetchall()
+                # Sütun isimleri: id, bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi (sıralama tablonuza göre değişebilir ama güvenli çekelim)
+                
+            # Sütun adlarını bulmak için description kullanıyoruz
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT * FROM parcalar WHERE durum = 'YEDEK PARÇA'")
+                    colnames = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                    
+                    for row in rows:
+                        r_dict = dict(zip(colnames, row))
+                        p_sn = r_dict.get("parca_sn", "-")
+                        
+                        # Depoda bu parça SN ile zaten kayıtlı mı kontrol et (eğer SN - veya boş değilse)
+                        eklenebilir = True
+                        if p_sn and p_sn != "-" and p_sn != "":
+                            cursor.execute("SELECT id FROM depo_stok WHERE parca_sn = %s", (p_sn,))
+                            if cursor.fetchone():
+                                eklenebilir = False
+                        
+                        if eklenebilir:
+                            cursor.execute(
+                                """
+                                INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """,
+                                (
+                                    r_dict.get("bolge", "-"),
+                                    r_dict.get("sistem_adi", "-"),
+                                    r_dict.get("sistem_pn", "-"),
+                                    r_dict.get("sistem_sn", "-"),
+                                    r_dict.get("parca_adi", "-"),
+                                    r_dict.get("parca_pn", "-"),
+                                    p_sn,
+                                    "YEDEK PARÇA",
+                                    r_dict.get("onarim_tarih", "-"),
+                                    r_dict.get("aciklama", ""),
+                                ),
+                            )
+                conn.commit()
+
 
     def log_yaz(islem_turu, detay):
         try:
@@ -842,7 +887,6 @@ try:
                                 ),
                             )
 
-                            # Eğer durum YEDEK PARÇA ise otomatik olarak Depo Stoku tablosuna da ekle
                             if e_durum == "YEDEK PARÇA":
                                 cursor.execute(
                                     """
