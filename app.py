@@ -586,7 +586,7 @@ try:
             st.rerun()
 
 
-    # 1. SEKME: ENVANTER & DURUM TAKİP (YENİLENMİŞ KART GÖRÜNÜMÜ)
+    # 1. SEKME: ENVANTER & DURUM TAKİP
     with tab_takip:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -662,9 +662,10 @@ try:
 
             if not filt_df.empty and "bolge" in filt_df.columns:
                 for b_adi, b_grubu in filt_df.groupby("bolge"):
+                    # Tıklanana kadar kapalı gelmesi için expanded=False yapıldı
                     with st.expander(
-                        f"📍 BÖLGE: {b_adi} ({len(b_grubu)} Kayıt)",
-                        expanded=True,
+                        f"🏢 {b_adi}  ({len(b_grubu)} Kayıt)",
+                        expanded=False,
                     ):
                         for _, row in b_grubu.iterrows():
                             r_id = row["id"]
