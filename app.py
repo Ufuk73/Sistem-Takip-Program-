@@ -713,9 +713,9 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE
+    # 2. SEKME: YENİ KAYIT EKLE (TEK FORM - ESKİ DÜZEN + PARÇA ADI SEÇİMİ)
     with tab_ekle:
-        st.markdown("##### 📍 Yeni Bölge ve Envanter Kaydı Oluştur")
+        st.markdown("##### 📍 Yeni Envanter Kaydı Oluştur")
         
         kayitli_bolgeler = (
             sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -724,19 +724,19 @@ try:
         )
 
         secim_tipi = st.radio(
-            "Bölge Seçim Türü",
-            ["Kayıtlı Bölgeden Seç", "Yeni Bölge Adı Yaz"],
+            "Bölge Giriş",
+            ["Kayıtlı Seç", "Yeni Yaz"],
             horizontal=True,
             key="form_secim_tipi",
         )
 
         aktif_bolge = ""
-        if secim_tipi == "Kayıtlı Bölgeden Seç" and len(kayitli_bolgeler) > 0:
+        if secim_tipi == "Kayıtlı Seç" and len(kayitli_bolgeler) > 0:
             aktif_bolge = st.selectbox(
-                "Mevcut Bölgeler", kayitli_bolgeler, key="form_secilen_bolge"
+                "Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge"
             )
         else:
-            aktif_bolge = st.text_input("Yeni Bölge Adı Girin", key="form_yeni_bolge")
+            aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
 
         varsayilan_sistem = ""
         varsayilan_s_pn = ""
@@ -764,52 +764,42 @@ try:
                     else ""
                 )
 
-        st.markdown("---")
-        st.markdown("##### 📦 Parça Adı Seçimi")
-        
         kayitli_parcalar = (
             sorted(list(df_parcalar["parca_adi"].dropna().unique()))
             if not df_parcalar.empty and "parca_adi" in df_parcalar.columns
             else []
         )
 
-        parca_secim_tipi = st.radio(
-            "Parça Seçim Türü",
-            ["Kayıtlı Parçadan Seç", "Yeni Parça Adı Yaz"],
-            horizontal=True,
-            key="form_parca_secim_tipi",
-        )
-
-        aktif_parca = ""
-        if parca_secim_tipi == "Kayıtlı Parçadan Seç" and len(kayitli_parcalar) > 0:
-            aktif_parca = st.selectbox(
-                "Mevcut Parçalar", kayitli_parcalar, key="form_secilen_parca"
-            )
-        else:
-            aktif_parca = st.text_input("Yeni Parça Adı Girin", key="form_yeni_parca")
-
-        varsayilan_p_pn = ""
-        if aktif_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
-            eslesen_parcalar = df_parcalar[
-                df_parcalar["parca_adi"].str.upper() == str(aktif_parca).upper()
-            ]
-            if not eslesen_parcalar.empty:
-                son_p_kayit = eslesen_parcalar.iloc[-1]
-                varsayilan_p_pn = (
-                    son_p_kayit.get("parca_pn", "")
-                    if pd.notna(son_p_kayit.get("parca_pn", ""))
-                    else ""
-                )
-
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             st.markdown(
-                f"🏷️ **Seçilen Bölge:** `{aktif_bolge if aktif_bolge else 'Seçilmedi'}` | 📦 **Seçilen Parça:** `{aktif_parca if aktif_parca else 'Seçilmedi'}`"
+                f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
             )
 
             e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
             c1, c2 = st.columns(2)
             e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
             e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
+
+            # Parça Adı için Seçim veya Yeni Yazma İmkanı
+            if len(kayitli_parcalar) > 0:
+                p_secim_tipi = st.radio(
+                    "Parça Adı Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True, key="p_secim_tipi"
+                )
+                if p_secim_tipi == "Kayıtlı Seç":
+                    e_parca = st.selectbox("Parça Adı Seç", kayitli_parcalar, key="form_secilen_parca")
+                else:
+                    e_parca = st.text_input("Yeni Parça Adı", key="form_yeni_parca")
+            else:
+                e_parca = st.text_input("Parça Adı", key="form_yeni_parca")
+
+            # Seçilen parçaya ait son PN'yi bulma
+            varsayilan_p_pn = ""
+            if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
+                eslesen_p = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).upper()]
+                if not eslesen_p.empty:
+                    varsayilan_p_pn = eslesen_p.iloc[-1].get("parca_pn", "")
+                    if pd.isna(varsayilan_p_pn):
+                        varsayilan_p_pn = ""
 
             c3, c4 = st.columns(2)
             e_p_pn = c3.text_input("Parça PN", value=varsayilan_p_pn)
@@ -833,7 +823,7 @@ try:
             )
 
             if st.form_submit_button("Sisteme Kaydet", type="primary"):
-                if not aktif_bolge or not e_sistem or not aktif_parca:
+                if not aktif_bolge or not e_sistem or not e_parca:
                     st.warning("Bölge, Sistem Adı ve Parça Adı zorunludur!")
                 else:
                     dosya_ismi = None
@@ -856,7 +846,7 @@ try:
                                     tr_upper(e_sistem),
                                     tr_upper(e_s_pn),
                                     tr_upper(e_s_sn),
-                                    tr_upper(aktif_parca),
+                                    tr_upper(e_parca),
                                     tr_upper(e_p_pn),
                                     tr_upper(e_p_sn),
                                     e_durum,
@@ -882,7 +872,7 @@ try:
                     st.cache_data.clear()
                     log_yaz(
                         "YENİ KAYIT",
-                        f"Bölge: {aktif_bolge}, Parça: {aktif_parca} eklendi.",
+                        f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.",
                     )
                     st.toast(
                         "✅ Kayıt başarıyla eklendi ve yedeklendi!", icon="🎉"
