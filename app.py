@@ -1155,10 +1155,10 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (GELİŞMİŞ TÜRKÇE SÜTUN EŞLEŞTİRME)
+    # 8. SEKME: DEPO LİSTESİ (İNTERAKTİF MANUEL SÜTUN EŞLEŞTİRME)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
-        st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **`tanımı`, `pn`, `sn`, `not`** başlıklı Excel/CSV dosyalarını topluca yükleyebilirsin.")
+        st.markdown("Depodaki malzemeleri yönetebilir, Excel dosyanı yükleyip **sütunları kendin eşleştirerek** tek tıkla depoya aktarabilirsin.")
         
         df_depo = veri_cek_depo()
 
@@ -1193,7 +1193,7 @@ try:
                 if not df_depo.empty:
                     output_depo = io.BytesIO()
                     with pd.ExcelWriter(output_depo, engine="openpyxl") as writer:
-                        df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)
+                        df_depo.to_excel(output_depo, sheet_name="Depo_Stok", index=False)
                         excel_stili_uygula(writer)
                     depo_excel_data = output_depo.getvalue()
                     
@@ -1208,8 +1208,7 @@ try:
                     st.info("Depoda indirilecek malzeme bulunmuyor.")
 
         with depo_islem_col2:
-            with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
-                st.markdown("💡 **Desteklenen Başlıklar:** `tanımı`, `pn`, `sn`, `not`")
+            with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=True):
                 yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_yukle")
                 
                 if yuklenen_depo_excel is not None:
@@ -1219,38 +1218,51 @@ try:
                         else:
                             df_yuklenen = pd.read_excel(yuklenen_depo_excel)
                         
-                        # Excel başlıklarını canlı olarak ekranda göster (Hata ayıklama için)
-                        st.info(f"📋 Algılanan Excel Sütun Başlıkları: `{list(df_yuklenen.columns)}`")
+                        st.success("✅ Excel dosyası başarıyla yüklendi! Lütfen sütunları eşleştirin:")
                         st.dataframe(df_yuklenen.head(3), use_container_width=True)
                         
-                        if st.button("Verileri Depoya Aktarmaya Başla", type="primary"):
+                        kolonlar = list(df_yuklenen.columns)
+                        
+                        # Akıllı Varsayılan Tahminler
+                        def tahmin_index(liste, anahtar_kelimeler):
+                            for idx, col in enumerate(liste):
+                                c_low = str(col).lower()
+                                if any(k in c_low for k in anahtar_kelimeler):
+                                    return idx
+                            return 0
+
+                        c_parca_idx = tahmin_index(kolonlar, ["tanim", "tanımı", "parca", "malzeme", "urun", "ad"])
+                        c_pn_idx = tahmin_index(kolonlar, ["pn", "parca_pn", "kod"])
+                        c_sn_idx = tahmin_index(kolonlar, ["sn", "parca_sn", "seri"])
+                        c_not_idx = tahmin_index(kolonlar, ["not", "açıklama", "aciklama", "detay"])
+                        c_bolge_idx = tahmin_index(kolonlar, ["bölge", "bolge", "konum", "depo"])
+
+                        st.markdown("##### ⚙️ Sütun Eşleştirme Paneli")
+                        map_col1, map_col2 = st.columns(2)
+                        
+                        with map_col1:
+                            secilen_parca_col = st.selectbox("Parça Adı / Tanımı Sütunu *", kolonlar, index=c_parca_idx)
+                            secilen_pn_col = st.selectbox("PN Sütunu (Opsiyonel)", ["Yok"] + kolonlar, index=(c_pn_idx + 1 if c_pn_idx < len(kolonlar) else 0))
+                            secilen_sn_col = st.selectbox("SN Sütunu (Opsiyonel)", ["Yok"] + kolonlar, index=(c_sn_idx + 1 if c_sn_idx < len(kolonlar) else 0))
+                        
+                        with map_col2:
+                            secilen_bolge_col = st.selectbox("Bölge / Konum Sütunu (Opsiyonel)", ["Sabit Merkez Depo"] + kolonlar, index=(c_bolge_idx + 1 if c_bolge_idx < len(kolonlar) else 0))
+                            secilen_not_col = st.selectbox("Not / Açıklama Sütunu (Opsiyonel)", ["Yok"] + kolonlar, index=(c_not_idx + 1 if c_not_idx < len(kolonlar) else 0))
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("🚀 Verileri Depoya Aktarmaya Başla", type="primary", use_container_width=True):
                             eklenen_sayac = 0
                             tarih_str = datetime.date.today().strftime("%d.%m.%Y")
                             
-                            def normalize_str(s):
-                                return str(s).strip().lower().replace("İ", "i").replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c").replace(" ", "_")
-
-                            def sutun_bul(df, olasi_isimler):
-                                norm_olasi = [normalize_str(x) for x in olasi_isimler]
-                                for col in df.columns:
-                                    if normalize_str(col) in norm_olasi:
-                                        return col
-                                return None
-
-                            col_parca = sutun_bul(df_yuklenen, ["tanimi", "tanim", "tanım", "parca_adi", "malzeme_adi", "urun_adi", "parca", "malzeme", "urun", "ad", "isim", "name", "item"])
-                            col_bolge = sutun_bul(df_yuklenen, ["bolge", "konum", "depo", "lokasyon", "location"])
-                            col_pn = sutun_bul(df_yuklenen, ["pn", "parca_pn", "part_number", "part_no", "parca_kodu", "kod"])
-                            col_sn = sutun_bul(df_yuklenen, ["sn", "parca_sn", "serial_number", "serial_no", "seri_no", "seri_numarasi"])
-                            col_not = sutun_bul(df_yuklenen, ["not", "notlar", "aciklama", "detay", "description", "remark"])
-
                             with get_db_connection() as conn:
                                 with conn.cursor() as cursor:
                                     for _, y_row in df_yuklenen.iterrows():
-                                        b_parca = str(y_row[col_parca]).strip() if col_parca and pd.notna(y_row[col_parca]) else ""
-                                        b_bolge = str(y_row[col_bolge]).strip() if col_bolge and pd.notna(y_row[col_bolge]) else "MERKEZ DEPO"
-                                        b_pn = str(y_row[col_pn]).strip() if col_pn and pd.notna(y_row[col_pn]) else "-"
-                                        b_sn = str(y_row[col_sn]).strip() if col_sn and pd.notna(y_row[col_sn]) else "-"
-                                        b_not = str(y_row[col_not]).strip() if col_not and pd.notna(y_row[col_not]) else ""
+                                        b_parca = str(y_row[secilen_parca_col]).strip() if secilen_parca_col and pd.notna(y_row[secilen_parca_col]) else ""
+                                        
+                                        b_bolge = str(y_row[secilen_bolge_col]).strip() if secilen_bolge_col != "Sabit Merkez Depo" and pd.notna(y_row[secilen_bolge_col]) else "MERKEZ DEPO"
+                                        b_pn = str(y_row[secilen_pn_col]).strip() if secilen_pn_col != "Yok" and pd.notna(y_row[secilen_pn_col]) else "-"
+                                        b_sn = str(y_row[secilen_sn_col]).strip() if secilen_sn_col != "Yok" and pd.notna(y_row[secilen_sn_col]) else "-"
+                                        b_not = str(y_row[secilen_not_col]).strip() if secilen_not_col != "Yok" and pd.notna(y_row[secilen_not_col]) else ""
                                         
                                         if b_parca and b_parca.lower() != "nan" and "isimsiz" not in b_parca.lower():
                                             cursor.execute(
