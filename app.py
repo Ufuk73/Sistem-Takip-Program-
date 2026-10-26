@@ -1155,7 +1155,7 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (AKILLI SÜTUN ALGILAMA + İSİMSİZ TEMİZLEME)
+    # 8. SEKME: DEPO LİSTESİ (GELİŞMİŞ TÜRKÇE SÜTUN EŞLEŞTİRME)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
         st.markdown("Depodaki tüm malzemeleri takip edebilir, dışarıdan **`tanımı`, `pn`, `sn`, `not`** başlıklı Excel/CSV dosyalarını topluca yükleyebilirsin.")
@@ -1209,7 +1209,7 @@ try:
 
         with depo_islem_col2:
             with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
-                st.markdown("💡 **Desteklenen Başlıklar:** `tanımı` (veya parça adı), `pn`, `sn`, `not` (veya açıklama), `bölge`")
+                st.markdown("💡 **Desteklenen Başlıklar:** `tanımı`, `pn`, `sn`, `not`")
                 yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_yukle")
                 
                 if yuklenen_depo_excel is not None:
@@ -1219,25 +1219,29 @@ try:
                         else:
                             df_yuklenen = pd.read_excel(yuklenen_depo_excel)
                         
+                        # Excel başlıklarını canlı olarak ekranda göster (Hata ayıklama için)
+                        st.info(f"📋 Algılanan Excel Sütun Başlıkları: `{list(df_yuklenen.columns)}`")
                         st.dataframe(df_yuklenen.head(3), use_container_width=True)
                         
                         if st.button("Verileri Depoya Aktarmaya Başla", type="primary"):
                             eklenen_sayac = 0
                             tarih_str = datetime.date.today().strftime("%d.%m.%Y")
                             
+                            def normalize_str(s):
+                                return str(s).strip().lower().replace("İ", "i").replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c").replace(" ", "_")
+
                             def sutun_bul(df, olasi_isimler):
+                                norm_olasi = [normalize_str(x) for x in olasi_isimler]
                                 for col in df.columns:
-                                    clean_col = str(col).strip().lower().replace(" ", "_").replace("İ", "i").replace("ı", "i")
-                                    if clean_col in olasi_isimler:
+                                    if normalize_str(col) in norm_olasi:
                                         return col
                                 return None
 
-                            # 'tanımı' ve benzeri tüm varyasyonları ekledik
                             col_parca = sutun_bul(df_yuklenen, ["tanimi", "tanim", "tanım", "parca_adi", "malzeme_adi", "urun_adi", "parca", "malzeme", "urun", "ad", "isim", "name", "item"])
                             col_bolge = sutun_bul(df_yuklenen, ["bolge", "konum", "depo", "lokasyon", "location"])
                             col_pn = sutun_bul(df_yuklenen, ["pn", "parca_pn", "part_number", "part_no", "parca_kodu", "kod"])
                             col_sn = sutun_bul(df_yuklenen, ["sn", "parca_sn", "serial_number", "serial_no", "seri_no", "seri_numarasi"])
-                            col_not = sutun_bul(df_yuklenen, ["not", "aciklama", "detay", "description", "remark"])
+                            col_not = sutun_bul(df_yuklenen, ["not", "notlar", "aciklama", "detay", "description", "remark"])
 
                             with get_db_connection() as conn:
                                 with conn.cursor() as cursor:
