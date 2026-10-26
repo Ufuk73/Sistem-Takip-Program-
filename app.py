@@ -64,8 +64,9 @@ try:
     @st.cache_data
     def veri_cek_depo():
         with get_db_connection() as conn:
+            # Depo kayıtlarını parça adına göre alfabetik (A-Z) sıralı çeker
             return pd.read_sql_query(
-                "SELECT * FROM depo_stok ORDER BY id DESC", conn
+                "SELECT * FROM depo_stok ORDER BY parca_adi ASC", conn
             )
 
 
@@ -1145,7 +1146,7 @@ try:
                     "İndirilecek Otomatik Yedeği Seç", yedek_dosyalari
                 )
                 yedek_tam_yol = os.path.join(AUTOSAVE_FOLDER, secilen_yedek)
-                with open(yedek_tam_yol, "rb") as yf:
+                with open(yed_tam_yol := yedek_tam_yol, "rb") as yf:
                     st.download_button(
                         "⬇️ Seçilen Yedeği İndir",
                         data=yf,
@@ -1155,10 +1156,10 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (İNTERAKTİF MANUEL SÜTUN EŞLEŞTİRME)
+    # 8. SEKME: DEPO LİSTESİ (ALFABETİK SIRALAMA + BÖLGE ROZETİ)
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
-        st.markdown("Depodaki malzemeleri yönetebilir, Excel dosyanı yükleyip **sütunları kendin eşleştirerek** tek tıkla depoya aktarabilirsin.")
+        st.markdown("Depodaki malzemeleri yönetebilir, Excel dosyanı yükleyip sütunları eşleştirerek depoya aktarabilirsin.")
         
         df_depo = veri_cek_depo()
 
@@ -1193,7 +1194,7 @@ try:
                 if not df_depo.empty:
                     output_depo = io.BytesIO()
                     with pd.ExcelWriter(output_depo, engine="openpyxl") as writer:
-                        df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)  # <-- DÜZELTİLDİ (writer kullanıldı)
+                        df_depo.to_excel(writer, sheet_name="Depo_Stok", index=False)
                         excel_stili_uygula(writer)
                     depo_excel_data = output_depo.getvalue()
                     
@@ -1208,7 +1209,7 @@ try:
                     st.info("Depoda indirilecek malzeme bulunmuyor.")
 
         with depo_islem_col2:
-            with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=True):
+            with st.expander("📤 Excel / CSV İle Toplu Malzeme Yükle", expanded=False):
                 yuklenen_depo_excel = st.file_uploader("Depo Excel Dosyasını Seçin", type=["xlsx", "xls", "csv"], key="depo_excel_yukle")
                 
                 if yuklenen_depo_excel is not None:
@@ -1373,10 +1374,14 @@ try:
                 
                 with col_d_card:
                     aciklama_html = f"<div style='font-size:12px; color:#888; margin-top:4px;'>📝 Not: {d_aciklama}</div>" if pd.notna(d_aciklama) and str(d_aciklama).strip() else ""
+                    
+                    # DEPO STOK yazısının hemen yanında bölge rozeti
+                    bolge_badge = f"<span class='tag-badge' style='background-color:#1e242b; color:#00adb5; border:1px solid #00adb5;'>📍 {d_bolge}</span>" if d_bolge and d_bolge != "-" else ""
+                    
                     st.markdown(
                         f"""
                         <div class="item-card">
-                            <div class="item-title">📦 {d_parca} <span class="tag-badge status-yedek">DEPO STOK</span></div>
+                            <div class="item-title">📦 {d_parca} <span class="tag-badge status-yedek">DEPO STOK</span> {bolge_badge}</div>
                             <div class="item-sub">
                                 <b>Depo/Bölge:</b> {d_bolge} | <b>Sistem:</b> {d_sistem} | <b>SN:</b> <code style='color:#00adb5;'>{d_sn}</code> | <b>PN:</b> {d_pn} | <b>Tarih:</b> {d_tarih}
                             </div>
