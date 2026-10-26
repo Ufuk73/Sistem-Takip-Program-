@@ -381,13 +381,13 @@ try:
         unsafe_allow_html=True,
     )
 
-    tab_takip, tab_ekle, tab_notlar, tab_loglar, tab_gecmis, tab_arizali, tab_yonetim = st.tabs([
+    tab_takip, tab_ekle, tab_arizali, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim = st.tabs([
         "📋 Kart Görünümü",
         "➕ Yeni Kayıt",
+        "⚠️ Arızalı Birimler",
         "📝 Günlük Notlar",
         "📜 Loglar",
         "🔍 Parça Geçmişi",
-        "⚠️ Arızalı Birimler",
         "⚙️ Yönetim",
     ])
 
@@ -905,98 +905,7 @@ try:
                     )
                     st.rerun()
 
-    # 3. SEKME: GÜNLÜK NOTLAR
-    with tab_notlar:
-        kayitli_not_bolgeler = (
-            sorted(list(df_parcalar["bolge"].dropna().unique()))
-            if not df_parcalar.empty and "bolge" in df_parcalar.columns
-            else []
-        )
-        st.subheader("📝 Günlük Notlar ve Olaylar")
-        with st.form("gunluk_not_form", clear_on_submit=True):
-            n_bolge = st.selectbox(
-                "İlgili Bölge / Konum", ["GENEL"] + kayitli_not_bolgeler
-            )
-            n_detay = st.text_area("Günlük Not / Faaliyet Açıklaması")
-            if st.form_submit_button("Notu Kaydet", type="primary"):
-                if not n_detay:
-                    st.warning("Not içeriği boş olamaz!")
-                else:
-                    tarih_str = datetime.datetime.now().strftime(
-                        "%d.%m.%Y %H:%M"
-                    )
-                    with get_db_connection() as conn:
-                        with conn.cursor() as cursor:
-                            cursor.execute(
-                                "INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (%s, %s, %s)",
-                                (tarih_str, n_bolge, tr_upper(n_detay)),
-                            )
-                        conn.commit()
-                    st.cache_data.clear()
-                    log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
-                    st.toast("✅ Not başarıyla kaydedildi!", icon="📝")
-                    st.rerun()
-
-        df_notlar = veri_cek_notlar()
-        if not df_notlar.empty:
-            st.markdown("---")
-            for _, nrow in df_notlar.iterrows():
-                st.markdown(
-                    f"**📅 {nrow.get('tarih', '-')} | 📍 {nrow.get('bolge', '-')}**"
-                )
-                st.info(nrow.get("detay", ""))
-        else:
-            st.info("Henüz kaydedilmiş günlük not bulunmuyor.")
-
-    # 4. SEKME: LOGLAR
-    with tab_loglar:
-        st.subheader("📜 Sistem İşlem Logları")
-        df_loglar = veri_cek_loglar()
-        if not df_loglar.empty:
-            st.dataframe(
-                df_loglar, use_container_width=True, hide_index=True
-            )
-            if st.button("Tüm Logları Temizle", type="primary"):
-                with get_db_connection() as conn:
-                    with conn.cursor() as cursor:
-                        cursor.execute("DELETE FROM islem_loglari")
-                    conn.commit()
-                st.cache_data.clear()
-                st.toast("🧹 Loglar temizlendi.")
-                st.rerun()
-        else:
-            st.info("Kayıtlı log bulunmuyor.")
-
-    # 5. SEKME: PARÇA GEÇMİŞİ
-    with tab_gecmis:
-        st.subheader("🔍 Parça Seri Numarası Geçmişi")
-        s_ara_sn = st.text_input(
-            "Aranacak Parça Seri Numarası (SN)", key="parca_gecmis_input"
-        )
-        if s_ara_sn:
-            with get_db_connection() as conn:
-                df_gcek = pd.read_sql_query(
-                    "SELECT * FROM parca_gecmis WHERE parca_sn ILIKE %s ORDER BY id DESC",
-                    conn,
-                    params=(f"%{s_ara_sn.strip()}%",),
-                )
-            if not df_gcek.empty:
-                st.success(
-                    f"`{s_ara_sn}` seri numaralı parça için {len(df_gcek)} adet işlem geçmişi bulundu:"
-                )
-                for _, grow in df_gcek.iterrows():
-                    st.markdown(
-                        f"• **{grow.get('tarih', '-')}** — `{grow.get('islem', '-')}`"
-                    )
-                    if pd.notna(grow.get("aciklama")) and str(
-                        grow.get("aciklama")
-                    ).strip():
-                        st.caption(f"Açıklama: {grow.get('aciklama')}")
-                    st.markdown("---")
-            else:
-                st.info("Bu seri numarasına ait geçmiş işlem kaydı bulunamadı.")
-
-    # 6. SEKME: ARIZALI BİRİMLER (HIZLI BİLDİRİM)
+    # 3. SEKME: ARIZALI BİRİMLER (HIZLI BİLDİRİM)
     with tab_arizali:
         st.subheader("⚠️ Bölgesel Arıza Bildirimleri")
         st.markdown(
@@ -1071,6 +980,97 @@ try:
                 st.markdown("<hr style='margin:5px 0; border-color: #333;'>", unsafe_allow_html=True)
         else:
             st.success("Harika! Aktif arıza bildirimi bulunmuyor. 🎉")
+
+    # 4. SEKME: GÜNLÜK NOTLAR
+    with tab_notlar:
+        kayitli_not_bolgeler = (
+            sorted(list(df_parcalar["bolge"].dropna().unique()))
+            if not df_parcalar.empty and "bolge" in df_parcalar.columns
+            else []
+        )
+        st.subheader("📝 Günlük Notlar ve Olaylar")
+        with st.form("gunluk_not_form", clear_on_submit=True):
+            n_bolge = st.selectbox(
+                "İlgili Bölge / Konum", ["GENEL"] + kayitli_not_bolgeler
+            )
+            n_detay = st.text_area("Günlük Not / Faaliyet Açıklaması")
+            if st.form_submit_button("Notu Kaydet", type="primary"):
+                if not n_detay:
+                    st.warning("Not içeriği boş olamaz!")
+                else:
+                    tarih_str = datetime.datetime.now().strftime(
+                        "%d.%m.%Y %H:%M"
+                    )
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cursor:
+                            cursor.execute(
+                                "INSERT INTO gunluk_notlar (tarih, bolge, detay) VALUES (%s, %s, %s)",
+                                (tarih_str, n_bolge, tr_upper(n_detay)),
+                            )
+                        conn.commit()
+                    st.cache_data.clear()
+                    log_yaz("GÜNLÜK NOT", f"Bölge: {n_bolge} için not eklendi.")
+                    st.toast("✅ Not başarıyla kaydedildi!", icon="📝")
+                    st.rerun()
+
+        df_notlar = veri_cek_notlar()
+        if not df_notlar.empty:
+            st.markdown("---")
+            for _, nrow in df_notlar.iterrows():
+                st.markdown(
+                    f"**📅 {nrow.get('tarih', '-')} | 📍 {nrow.get('bolge', '-')}**"
+                )
+                st.info(nrow.get("detay", ""))
+        else:
+            st.info("Henüz kaydedilmiş günlük not bulunmuyor.")
+
+    # 5. SEKME: LOGLAR
+    with tab_loglar:
+        st.subheader("📜 Sistem İşlem Logları")
+        df_loglar = veri_cek_loglar()
+        if not df_loglar.empty:
+            st.dataframe(
+                df_loglar, use_container_width=True, hide_index=True
+            )
+            if st.button("Tüm Logları Temizle", type="primary"):
+                with get_db_connection() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("DELETE FROM islem_loglari")
+                    conn.commit()
+                st.cache_data.clear()
+                st.toast("🧹 Loglar temizlendi.")
+                st.rerun()
+        else:
+            st.info("Kayıtlı log bulunmuyor.")
+
+    # 6. SEKME: PARÇA GEÇMİŞİ
+    with tab_gecmis:
+        st.subheader("🔍 Parça Seri Numarası Geçmişi")
+        s_ara_sn = st.text_input(
+            "Aranacak Parça Seri Numarası (SN)", key="parca_gecmis_input"
+        )
+        if s_ara_sn:
+            with get_db_connection() as conn:
+                df_gcek = pd.read_sql_query(
+                    "SELECT * FROM parca_gecmis WHERE parca_sn ILIKE %s ORDER BY id DESC",
+                    conn,
+                    params=(f"%{s_ara_sn.strip()}%",),
+                )
+            if not df_gcek.empty:
+                st.success(
+                    f"`{s_ara_sn}` seri numaralı parça için {len(df_gcek)} adet işlem geçmişi bulundu:"
+                )
+                for _, grow in df_gcek.iterrows():
+                    st.markdown(
+                        f"• **{grow.get('tarih', '-')}** — `{grow.get('islem', '-')}`"
+                    )
+                    if pd.notna(grow.get("aciklama")) and str(
+                        grow.get("aciklama")
+                    ).strip():
+                        st.caption(f"Açıklama: {grow.get('aciklama')}")
+                    st.markdown("---")
+            else:
+                st.info("Bu seri numarasına ait geçmiş işlem kaydı bulunamadı.")
 
     # 7. SEKME: YÖNETİM
     with tab_yonetim:
