@@ -585,13 +585,12 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (RADYO BUTONU FORM DIŞINA ALINARAK ANLIK GEÇİŞ SAĞLANDI)
+    # 2. SEKME: YENİ KAYIT EKLE
     with tab_ekle:
         kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
         st.markdown("#### ➕ Yeni Sistem ve Parça Kaydı")
 
-        # RADYO BUTONU FORMUN DIŞINDA (Anlık tetikleme ve geçiş için)
         st.markdown("##### 📍 Bölge Seçim Tipi")
         secim_tipi = st.radio(
             "Bölge Giriş Tipi", 
@@ -1177,5 +1176,5 @@ try:
             st.success("Depoda şu an sevk edilmiş malzeme bulunmuyor. 🎉")
 
 except Exception as e:
-    st.error(f>Kritik Hata: {e})
+    st.error(f"Kritik Hata: {e}")
     st.code(traceback.format_exc())
