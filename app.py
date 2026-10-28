@@ -64,7 +64,6 @@ try:
     @st.cache_data
     def veri_cek_depo():
         with get_db_connection() as conn:
-            # Depo kayıtlarını parça adına göre alfabetik (A-Z) sıralı çeker
             return pd.read_sql_query(
                 "SELECT * FROM depo_stok ORDER BY parca_adi ASC", conn
             )
@@ -762,11 +761,11 @@ try:
                                     if st.button("🗑️", key=f"del_{r_id}", help="Sil", use_container_width=True):
                                         sil_onay_dialog(r_id, p_adi, p_sn)
             else:
-                st.info("Filtreleme kriterlerine uygun kayıt bulunamadı.")
+                st.info("Filtreleme kriterlerine uygun kayıt bulunmadı.")
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE
+    # 2. SEKME: YENİ KAYIT EKLE (SABİT PN, DEĞİŞKEN SN MANTIĞI)
     with tab_ekle:
         kayitli_bolgeler = (
             sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -815,6 +814,12 @@ try:
                     else ""
                 )
 
+        mevcut_parca_adlari = (
+            sorted(list(df_parcalar["parca_adi"].dropna().unique()))
+            if not df_parcalar.empty and "parca_adi" in df_parcalar.columns
+            else []
+        )
+
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             st.markdown(
                 f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
@@ -825,10 +830,27 @@ try:
             e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
             e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            e_parca = st.text_input("Parça Adı")
+            p_giris_tipi = st.radio(
+                "Parça Adı Giriş Tipi", ["Kayıtlı Parçalardan Seç", "Yeni Parça Adı Yaz"], horizontal=True
+            )
+
+            varsayilan_p_pn = ""
+
+            if p_giris_tipi == "Kayıtlı Parçalardan Seç" and len(mevcut_parca_adlari) > 0:
+                e_parca = st.selectbox("Parça Adı", mevcut_parca_adlari)
+                # Parça PN sabit olduğu için son kaydedilen PN değerini çekiyoruz
+                if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
+                    p_eslesenler = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).upper()]
+                    if not p_eslesenler.empty:
+                        p_son = p_eslesenler.iloc[-1]
+                        varsayilan_p_pn = p_son.get("parca_pn", "") if pd.notna(p_son.get("parca_pn", "")) else ""
+            else:
+                e_parca = st.text_input("Yeni Parça Adı")
+
             c3, c4 = st.columns(2)
-            e_p_pn = c3.text_input("Parça PN", value="")
-            e_p_sn = c4.text_input("Parça SN", value="")
+            e_p_pn = c3.text_input("Parça PN (Sabit/Otomatik Gelir)", value=varsayilan_p_pn)
+            # Parça SN her parçada değişken olduğu için boş bırakıyoruz
+            e_p_sn = c4.text_input("Parça SN (Her Parça İçin Değişken)", value="")
 
             e_durum = st.selectbox(
                 "Durum",
@@ -1156,7 +1178,7 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ (İSme Göre Gruplama + Alfabetik Sıralama + Çoklu Silme)
+    # 8. SEKME: DEPO LİSTESİ
     with tab_depo:
         st.subheader("📦 Modern Depo ve Stok Yönetimi")
         st.markdown("Depodaki malzemeleri isimlerine göre gruplanmış ve alfabetik sıraya göre yönetebilir, çoklu silme işlemi yapabilirsin.")
@@ -1363,7 +1385,6 @@ try:
 
             secilen_idler = []
 
-            # Parça adlarına göre gruplandırma (Alfabetik sıra ORDER BY parca_adi ASC ile garanti ediliyor)
             for parca_adi, grup in filt_depo.groupby("parca_adi", sort=False):
                 bolgeler_str = ", ".join(grup["bolge"].dropna().unique())
                 
@@ -1426,7 +1447,6 @@ try:
                                     st.toast("✅ Kayıt silindi.", icon="🗑️")
                                     st.rerun()
 
-            # Toplu / Çoklu Silme İşlem Alanı
             if secilen_idler:
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_info, col_btn = st.columns([6, 4])
