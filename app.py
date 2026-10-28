@@ -761,11 +761,11 @@ try:
                                     if st.button("🗑️", key=f"del_{r_id}", help="Sil", use_container_width=True):
                                         sil_onay_dialog(r_id, p_adi, p_sn)
             else:
-                st.info("Filtreleme kriterlerine uygun kayıt bulunmadı.")
+                st.info("Filtreleme kriterlerine uygun kayıt bulunamadı.")
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (SABİT PN, DEĞİŞKEN SN MANTIĞI)
+    # 2. SEKME: YENİ KAYIT EKLE (SERBEST YAZI + TEK TUŞLA PN GETİR)
     with tab_ekle:
         kayitli_bolgeler = (
             sorted(list(df_parcalar["bolge"].dropna().unique()))
@@ -814,11 +814,9 @@ try:
                     else ""
                 )
 
-        mevcut_parca_adlari = (
-            sorted(list(df_parcalar["parca_adi"].dropna().unique()))
-            if not df_parcalar.empty and "parca_adi" in df_parcalar.columns
-            else []
-        )
+        # Oturum belleğinde PN saklamak için
+        if "hafiza_parca_pn" not in st.session_state:
+            st.session_state.hafiza_parca_pn = ""
 
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             st.markdown(
@@ -830,27 +828,38 @@ try:
             e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
             e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            p_giris_tipi = st.radio(
-                "Parça Adı Giriş Tipi", ["Kayıtlı Parçalardan Seç", "Yeni Parça Adı Yaz"], horizontal=True
-            )
+            # Serbest Parça Adı Girişi
+            e_parca = st.text_input("Parça Adı (Serbest Yazın)")
 
-            varsayilan_p_pn = ""
-
-            if p_giris_tipi == "Kayıtlı Parçalardan Seç" and len(mevcut_parca_adlari) > 0:
-                e_parca = st.selectbox("Parça Adı", mevcut_parca_adlari)
-                # Parça PN sabit olduğu için son kaydedilen PN değerini çekiyoruz
+            # PN Getir Butonu için yan yana sütunlar
+            pn_col1, pn_col2 = st.columns([3, 1])
+            
+            # Otomatik ön doldurma kontrolü (eğer session_state'de kayıtlıysa)
+            onerilen_pn = st.session_state.hafiza_parca_pn if st.session_state.hafiza_parca_pn else ""
+            
+            e_p_pn = pn_col1.text_input("Parça PN (Sabit/Otomatik)", value=onerilen_pn)
+            
+            pn_getir_tik = pn_col2.form_submit_button("🔍 PN Getir", use_container_width=True)
+            
+            if pn_getir_tik:
                 if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
-                    p_eslesenler = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).upper()]
-                    if not p_eslesenler.empty:
-                        p_son = p_eslesenler.iloc[-1]
-                        varsayilan_p_pn = p_son.get("parca_pn", "") if pd.notna(p_son.get("parca_pn", "")) else ""
-            else:
-                e_parca = st.text_input("Yeni Parça Adı")
+                    bulunanlar = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).strip().upper()]
+                    if not bulunanlar.empty:
+                        son_p = bulunanlar.iloc[-1]
+                        bulunan_pn = son_p.get("parca_pn", "")
+                        if pd.notna(bulunan_pn) and bulunan_pn != "":
+                            st.session_state.hafiza_parca_pn = str(bulunan_pn)
+                            st.toast(f"✅ Bulunan PN yüklendi: {bulunan_pn}", icon="🔍")
+                            st.rerun()
+                        else:
+                            st.warning("Bu parçaya ait kayıtlı bir PN bulunamadı.")
+                    else:
+                        st.warning("Daha önce bu isimde bir parça kaydedilmemiş.")
+                else:
+                    st.warning("Lütfen önce parça adını yazın!")
 
-            c3, c4 = st.columns(2)
-            e_p_pn = c3.text_input("Parça PN (Sabit/Otomatik Gelir)", value=varsayilan_p_pn)
-            # Parça SN her parçada değişken olduğu için boş bırakıyoruz
-            e_p_sn = c4.text_input("Parça SN (Her Parça İçin Değişken)", value="")
+            # Seri Numarası (SN) her parçada değişken olduğu için tamamen boş gelir
+            e_p_sn = st.text_input("Parça SN (Her Parça İçin Değişken/Boş)", value="")
 
             e_durum = st.selectbox(
                 "Durum",
@@ -936,6 +945,8 @@ try:
                             )
                         conn.commit()
 
+                    # Belleği temizle
+                    st.session_state.hafiza_parca_pn = ""
                     st.cache_data.clear()
                     log_yaz(
                         "YENİ KAYIT",
