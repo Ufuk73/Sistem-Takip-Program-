@@ -206,7 +206,6 @@ try:
                 )
             conn.commit()
 
-            # --- GEÇMİŞTEKİ YEDEK PARÇALARI DEPÓYA SENKRONİZE ETME ---
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT * FROM parcalar WHERE durum = 'YEDEK PARÇA'")
@@ -314,8 +313,6 @@ try:
         .top-signature b {
             color: #00adb5;
         }
-        
-        /* Modern Envanter Kart Tasarımı */
         .item-card {
             background-color: #1a1a1a;
             border: 1px solid #2d2d2d;
@@ -367,48 +364,23 @@ try:
             unsafe_allow_html=True,
         )
 
-    # Verileri Çek (Önbellekten)
     df_parcalar = veri_cek_parcalar()
 
-    # İstatistik Hesaplama
     toplam = len(df_parcalar)
-    faal = (
-        len(df_parcalar[df_parcalar["durum"] == "FAAL"])
-        if not df_parcalar.empty and "durum" in df_parcalar.columns
-        else 0
-    )
-    yedek = (
-        len(df_parcalar[df_parcalar["durum"] == "YEDEK PARÇA"])
-        if not df_parcalar.empty and "durum" in df_parcalar.columns
-        else 0
-    )
-    onarimda = (
-        len(df_parcalar[df_parcalar["durum"] == "ONARIMDA"])
-        if not df_parcalar.empty and "durum" in df_parcalar.columns
-        else 0
-    )
-    gayri = (
-        len(df_parcalar[df_parcalar["durum"] == "GAYRI FAAL"])
-        if not df_parcalar.empty and "durum" in df_parcalar.columns
-        else 0
-    )
+    faal = len(df_parcalar[df_parcalar["durum"] == "FAAL"]) if not df_parcalar.empty and "durum" in df_parcalar.columns else 0
+    yedek = len(df_parcalar[df_parcalar["durum"] == "YEDEK PARÇA"]) if not df_parcalar.empty and "durum" in df_parcalar.columns else 0
+    onarimda = len(df_parcalar[df_parcalar["durum"] == "ONARIMDA"]) if not df_parcalar.empty and "durum" in df_parcalar.columns else 0
+    gayri = len(df_parcalar[df_parcalar["durum"] == "GAYRI FAAL"]) if not df_parcalar.empty and "durum" in df_parcalar.columns else 0
 
-    # Kritik onarım hesaplama (30 gün+)
     kritik = 0
     kritik_liste = []
-    if (
-        not df_parcalar.empty
-        and "onarim_tarih" in df_parcalar.columns
-        and "durum" in df_parcalar.columns
-    ):
+    if not df_parcalar.empty and "onarim_tarih" in df_parcalar.columns and "durum" in df_parcalar.columns:
         bugun = datetime.date.today()
         for _, row in df_parcalar[df_parcalar["durum"] == "ONARIMDA"].iterrows():
             o_tarih = row["onarim_tarih"]
             if o_tarih:
                 try:
-                    baslangic = datetime.datetime.strptime(
-                        str(o_tarih).strip(), "%d.%m.%Y"
-                    ).date()
+                    baslangic = datetime.datetime.strptime(str(o_tarih).strip(), "%d.%m.%Y").date()
                     gecen_gun = (bugun - baslangic).days
                     if gecen_gun >= 30:
                         kritik += 1
@@ -419,51 +391,26 @@ try:
                     pass
 
     if kritik > 0:
-        st.error(
-            f"⚠️ **DİKKAT:** 30 Günü Aşan Onarımda Bekleyen **{kritik}** Adet Parça Bulunuyor!"
-        )
+        st.error(f"⚠️ **DİKKAT:** 30 Günü Aşan Onarımda Bekleyen **{kritik}** Adet Parça Bulunuyor!")
         with st.expander("Kritik Parçaları Listele", expanded=False):
             for k_bilgi in kritik_liste:
                 st.markdown(k_bilgi)
 
-    # Metrikleri Çerçeveli Sütunlar Halinde Yerleştirme
     c1, c2, c3, c4, c5, c6 = st.columns(6)
-
     with c1:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-title">Toplam</div><div class="metric-value">{toplam}</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Toplam</div><div class="metric-value">{toplam}</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-title">Faal</div><div class="metric-value" style="color: #2ecc71;">{faal}</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Faal</div><div class="metric-value" style="color: #2ecc71;">{faal}</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-title">Yedek</div><div class="metric-value" style="color: #3498db;">{yedek}</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Yedek</div><div class="metric-value" style="color: #3498db;">{yedek}</div></div>', unsafe_allow_html=True)
     with c4:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-title">Onarımda</div><div class="metric-value" style="color: #f1c40f;">{onarimda}</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Onarımda</div><div class="metric-value" style="color: #f1c40f;">{onarimda}</div></div>', unsafe_allow_html=True)
     with c5:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-title">Kritik (30+)</div><div class="metric-value" style="color: #e74c3c;">{kritik}</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Kritik (30+)</div><div class="metric-value" style="color: #e74c3c;">{kritik}</div></div>', unsafe_allow_html=True)
     with c6:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-title">Gayri Faal</div><div class="metric-value" style="color: #95a5a6;">{gayri}</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Gayri Faal</div><div class="metric-value" style="color: #95a5a6;">{gayri}</div></div>', unsafe_allow_html=True)
 
-    st.markdown(
-        "<hr style='margin:15px 0 10px 0; border-color: #333333;'>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<hr style='margin:15px 0 10px 0; border-color: #333333;'>", unsafe_allow_html=True)
 
     tab_takip, tab_ekle, tab_arizali, tab_notlar, tab_loglar, tab_gecmis, tab_yonetim, tab_depo = st.tabs([
         "📊 Envanter & Durum Takip",
@@ -476,105 +423,37 @@ try:
         "📦 Depo Listesi",
     ])
 
-
-    # Dialog ile Düzenleme Fonksiyonu
     @st.dialog("Kayıt Düzenle", width="large")
     def duzenle_dialog(r_id):
         with get_db_connection() as conn:
-            df_tekil = pd.read_sql_query(
-                "SELECT * FROM parcalar WHERE id = %s", conn, params=(r_id,)
-            )
+            df_tekil = pd.read_sql_query("SELECT * FROM parcalar WHERE id = %s", conn, params=(r_id,))
 
         if not df_tekil.empty:
             row = df_tekil.iloc[0]
             with st.form(key=f"dialog_form_{r_id}"):
-                e_bolge = st.text_input(
-                    "Bölge",
-                    value=(
-                        row.get("bolge", "")
-                        if pd.notna(row.get("bolge", ""))
-                        else ""
-                    ),
-                )
-                e_sistem = st.text_input(
-                    "Sistem Adı",
-                    value=(
-                        row.get("sistem_adi", "")
-                        if pd.notna(row.get("sistem_adi", ""))
-                        else ""
-                    ),
-                )
+                e_bolge = st.text_input("Bölge", value=(row.get("bolge", "") if pd.notna(row.get("bolge", "")) else ""))
+                e_sistem = st.text_input("Sistem Adı", value=(row.get("sistem_adi", "") if pd.notna(row.get("sistem_adi", "")) else ""))
 
                 col_d1, col_d2 = st.columns(2)
-                e_s_pn = col_d1.text_input(
-                    "Sistem PN",
-                    value=(
-                        row.get("sistem_pn", "")
-                        if pd.notna(row.get("sistem_pn", ""))
-                        else ""
-                    ),
-                )
-                e_s_sn = col_d2.text_input(
-                    "Sistem SN",
-                    value=(
-                        row.get("sistem_sn", "")
-                        if pd.notna(row.get("sistem_sn", ""))
-                        else ""
-                    ),
-                )
+                e_s_pn = col_d1.text_input("Sistem PN", value=(row.get("sistem_pn", "") if pd.notna(row.get("sistem_pn", "")) else ""))
+                e_s_sn = col_d2.text_input("Sistem SN", value=(row.get("sistem_sn", "") if pd.notna(row.get("sistem_sn", "")) else ""))
 
-                e_parca = st.text_input(
-                    "Parça Adı",
-                    value=(
-                        row.get("parca_adi", "")
-                        if pd.notna(row.get("parca_adi", ""))
-                        else ""
-                    ),
-                )
+                e_parca = st.text_input("Parça Adı", value=(row.get("parca_adi", "") if pd.notna(row.get("parca_adi", "")) else ""))
 
                 col_d3, col_d4 = st.columns(2)
-                e_p_pn = col_d3.text_input(
-                    "Parça PN",
-                    value=(
-                        row.get("parca_pn", "")
-                        if pd.notna(row.get("parca_pn", ""))
-                        else ""
-                    ),
-                )
-                e_p_sn = col_d4.text_input(
-                    "Parça SN",
-                    value=(
-                        row.get("parca_sn", "")
-                        if pd.notna(row.get("parca_sn", ""))
-                        else ""
-                    ),
-                )
+                e_p_pn = col_d3.text_input("Parça PN", value=(row.get("parca_pn", "") if pd.notna(row.get("parca_pn", "")) else ""))
+                e_p_sn = col_d4.text_input("Parça SN", value=(row.get("parca_sn", "") if pd.notna(row.get("parca_sn", "")) else ""))
 
                 mevcut_d = row.get("durum", "FAAL")
-                d_list = [
-                    "FAAL",
-                    "YEDEK PARÇA",
-                    "ONARIMDA",
-                    "SEVK 🚚",
-                    "GAYRI FAAL",
-                ]
+                d_list = ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"]
                 d_idx = d_list.index(mevcut_d) if mevcut_d in d_list else 0
                 e_durum = st.selectbox("Durum", d_list, index=d_idx)
 
                 varsayilan_tarih = str_to_date(row.get("onarim_tarih"))
-                e_tarih_obj = st.date_input(
-                    "Onarım Tarihi", value=varsayilan_tarih, format="DD.MM.YYYY"
-                )
+                e_tarih_obj = st.date_input("Onarım Tarihi", value=varsayilan_tarih, format="DD.MM.YYYY")
                 e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
 
-                e_aciklama = st.text_area(
-                    "Açıklama / Not",
-                    value=(
-                        row.get("aciklama", "")
-                        if pd.notna(row.get("aciklama", ""))
-                        else ""
-                    ),
-                )
+                e_aciklama = st.text_area("Açıklama / Not", value=(row.get("aciklama", "") if pd.notna(row.get("aciklama", "")) else ""))
 
                 if st.form_submit_button("Güncellemeyi Kaydet", type="primary"):
                     with get_db_connection() as conn:
@@ -598,14 +477,11 @@ try:
                                     r_id,
                                 ),
                             )
-
                             cursor.execute(
                                 "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
                                 (
                                     tr_upper(e_p_sn),
-                                    datetime.datetime.now().strftime(
-                                        "%d.%m.%Y %H:%M"
-                                    ),
+                                    datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
                                     f"GÜNCELLEME ({e_durum})",
                                     tr_upper(e_aciklama),
                                 ),
@@ -617,13 +493,9 @@ try:
                     st.toast("✅ Kayıt güncellendi!", icon="💾")
                     st.rerun()
 
-
-    # Silme Onay Dialogu
     @st.dialog("Silme Onayı")
     def sil_onay_dialog(r_id, parca_adi, parca_sn):
-        st.warning(
-            f"**{parca_adi}** (SN: `{parca_sn}`) kaydını silmek istediğinizden emin misiniz?"
-        )
+        st.warning(f"**{parca_adi}** (SN: `{parca_sn}`) kaydını silmek istediğinizden emin misiniz?")
         col_s1, col_s2 = st.columns(2)
         if col_s1.button("Evet, Sil", type="primary", use_container_width=True):
             with get_db_connection() as conn:
@@ -637,31 +509,14 @@ try:
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
 
-
     # 1. SEKME: ENVANTER & DURUM TAKİP
     with tab_takip:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
 
-            bolgeler = (
-                ["TÜMÜ"] + list(df_parcalar["bolge"].dropna().unique())
-                if "bolge" in df_parcalar.columns
-                else ["TÜMÜ"]
-            )
-            parcalar = (
-                ["TÜMÜ"] + list(df_parcalar["parca_adi"].dropna().unique())
-                if "parca_adi" in df_parcalar.columns
-                else ["TÜMÜ"]
-            )
-            durumlar = [
-                "TÜMÜ",
-                "FAAL",
-                "YEDEK PARÇA",
-                "ONARIMDA",
-                "SEVK 🚚",
-                "GAYRI FAAL",
-                "30 GÜN+ KRİTİK",
-            ]
+            bolgeler = ["TÜMÜ"] + list(df_parcalar["bolge"].dropna().unique()) if "bolge" in df_parcalar.columns else ["TÜMÜ"]
+            parcalar = ["TÜMÜ"] + list(df_parcalar["parca_adi"].dropna().unique()) if "parca_adi" in df_parcalar.columns else ["TÜMÜ"]
+            durumlar = ["TÜMÜ", "FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL", "30 GÜN+ KRİTİK"]
 
             f_bolge = col_f1.selectbox("📍 Bölge Filtresi", bolgeler)
             f_parca = col_f2.selectbox("📦 Parça Filtresi", parcalar)
@@ -673,25 +528,15 @@ try:
                 filt_df = filt_df[filt_df["bolge"] == f_bolge]
             if f_parca != "TÜMÜ" and "parca_adi" in filt_df.columns:
                 filt_df = filt_df[filt_df["parca_adi"] == f_parca]
-            if (
-                f_durum != "TÜMÜ"
-                and f_durum != "30 GÜN+ KRİTİK"
-                and "durum" in filt_df.columns
-            ):
+            if f_durum != "TÜMÜ" and f_durum != "30 GÜN+ KRİTİK" and "durum" in filt_df.columns:
                 filt_df = filt_df[filt_df["durum"] == f_durum]
-            elif (
-                f_durum == "30 GÜN+ KRİTİK"
-                and "durum" in filt_df.columns
-                and "onarim_tarih" in filt_df.columns
-            ):
+            elif f_durum == "30 GÜN+ KRİTİK" and "durum" in filt_df.columns and "onarim_tarih" in filt_df.columns:
                 kritik_idler = []
                 bugun = datetime.date.today()
                 for _, r in filt_df[filt_df["durum"] == "ONARIMDA"].iterrows():
                     if r["onarim_tarih"]:
                         try:
-                            b_t = datetime.datetime.strptime(
-                                str(r["onarim_tarih"]).strip(), "%d.%m.%Y"
-                            ).date()
+                            b_t = datetime.datetime.strptime(str(r["onarim_tarih"]).strip(), "%d.%m.%Y").date()
                             if (bugun - b_t).days >= 30:
                                 kritik_idler.append(r["id"])
                         except ValueError:
@@ -701,23 +546,14 @@ try:
             if f_arama:
                 a_upper = tr_upper(f_arama)
                 filt_df = filt_df[
-                    filt_df.apply(
-                        lambda row: row.astype(str)
-                        .str.upper()
-                        .str.contains(a_upper)
-                        .any(),
-                        axis=1,
-                    )
+                    filt_df.apply(lambda row: row.astype(str).str.upper().str.contains(a_upper).any(), axis=1)
                 ]
 
             st.markdown("<hr style='margin:10px 0 15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
             if not filt_df.empty and "bolge" in filt_df.columns:
                 for b_adi, b_grubu in filt_df.groupby("bolge"):
-                    with st.expander(
-                        f"📍 {b_adi}  ({len(b_grubu)} Kayıt)",
-                        expanded=False,
-                    ):
+                    with st.expander(f"📍 {b_adi}  ({len(b_grubu)} Kayıt)", expanded=False):
                         for _, row in b_grubu.iterrows():
                             r_id = row["id"]
                             durum = row.get("durum", "FAAL")
@@ -735,10 +571,8 @@ try:
                             )
 
                             c_card, c_acts = st.columns([8.5, 1.5])
-
                             with c_card:
                                 aciklama_html = f"<div style='font-size:12px; color:#888; margin-top:4px;'>📝 Not: {row.get('aciklama')}</div>" if pd.notna(row.get("aciklama")) and str(row.get("aciklama")).strip() else ""
-                                
                                 st.markdown(
                                     f"""
                                     <div class="item-card">
@@ -751,7 +585,6 @@ try:
                                     """,
                                     unsafe_allow_html=True,
                                 )
-
                             with c_acts:
                                 col_b1, col_b2 = st.columns(2)
                                 with col_b1:
@@ -765,26 +598,15 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (SERBEST YAZI + TEK TUŞLA PN GETİR)
+    # 2. SEKME: YENİ KAYIT EKLE (OPTION 1: SELECTBOX + AUTO-FILL PN, BLANK SN)
     with tab_ekle:
-        kayitli_bolgeler = (
-            sorted(list(df_parcalar["bolge"].dropna().unique()))
-            if not df_parcalar.empty and "bolge" in df_parcalar.columns
-            else []
-        )
+        kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
-        secim_tipi = st.radio(
-            "Bölge Giriş",
-            ["Kayıtlı Seç", "Yeni Yaz"],
-            horizontal=True,
-            key="form_secim_tipi",
-        )
+        secim_tipi = st.radio("Bölge Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True, key="form_secim_tipi")
 
         aktif_bolge = ""
         if secim_tipi == "Kayıtlı Seç" and len(kayitli_bolgeler) > 0:
-            aktif_bolge = st.selectbox(
-                "Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge"
-            )
+            aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge")
         else:
             aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
 
@@ -793,90 +615,64 @@ try:
         varsayilan_s_sn = ""
 
         if aktif_bolge and not df_parcalar.empty and "bolge" in df_parcalar.columns:
-            eslesen_kayitlar = df_parcalar[
-                df_parcalar["bolge"].str.upper() == str(aktif_bolge).upper()
-            ]
+            eslesen_kayitlar = df_parcalar[df_parcalar["bolge"].str.upper() == str(aktif_bolge).upper()]
             if not eslesen_kayitlar.empty:
                 son_kayit = eslesen_kayitlar.iloc[-1]
-                varsayilan_sistem = (
-                    son_kayit.get("sistem_adi", "")
-                    if pd.notna(son_kayit.get("sistem_adi", ""))
-                    else ""
-                )
-                varsayilan_s_pn = (
-                    son_kayit.get("sistem_pn", "")
-                    if pd.notna(son_kayit.get("sistem_pn", ""))
-                    else ""
-                )
-                varsayilan_s_sn = (
-                    son_kayit.get("sistem_sn", "")
-                    if pd.notna(son_kayit.get("sistem_sn", ""))
-                    else ""
-                )
+                varsayilan_sistem = son_kayit.get("sistem_adi", "") if pd.notna(son_kayit.get("sistem_adi", "")) else ""
+                varsayilan_s_pn = son_kayit.get("sistem_pn", "") if pd.notna(son_kayit.get("sistem_pn", "")) else ""
+                varsayilan_s_sn = son_kayit.get("sistem_sn", "") if pd.notna(son_kayit.get("sistem_sn", "")) else ""
 
-        # Oturum belleğinde PN saklamak için
-        if "hafiza_parca_pn" not in st.session_state:
-            st.session_state.hafiza_parca_pn = ""
+        mevcut_parca_adlari = sorted(list(df_parcalar["parca_adi"].dropna().unique())) if not df_parcalar.empty and "parca_adi" in df_parcalar.columns else []
+        parca_secenekleri = ["➕ Yeni Parça Yaz..."] + mevcut_parca_adlari
+
+        st.markdown(f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`")
+
+        def parca_secim_degisti():
+            secim = st.session_state.get("secilen_parca_selectbox", "➕ Yeni Parça Yaz...")
+            if secim != "➕ Yeni Parça Yaz...":
+                st.session_state.form_parca_adi_input = secim
+                if not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
+                    match = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(secim).upper()]
+                    if not match.empty:
+                        p_son = match.iloc[-1]
+                        pn_val = p_son.get("parca_pn", "")
+                        st.session_state.form_parca_pn_input = str(pn_val) if pd.notna(pn_val) else ""
+            else:
+                st.session_state.form_parca_adi_input = ""
+                st.session_state.form_parca_pn_input = ""
+
+        parca_secim_modu = st.selectbox(
+            "Parça Seç / Ekle",
+            parca_secenekleri,
+            key="secilen_parca_selectbox",
+            on_change=parca_secim_degisti
+        )
 
         with st.form("yeni_kayit_formu", clear_on_submit=True):
-            st.markdown(
-                f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`"
-            )
-
             e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
             c1, c2 = st.columns(2)
             e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
             e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            # Serbest Parça Adı Girişi
-            e_parca = st.text_input("Parça Adı (Serbest Yazın)")
+            initial_p_adi = st.session_state.get("form_parca_adi_input", "")
+            initial_p_pn = st.session_state.get("form_parca_pn_input", "")
 
-            # PN Getir Butonu için yan yana sütunlar
-            pn_col1, pn_col2 = st.columns([3, 1])
-            
-            # Otomatik ön doldurma kontrolü (eğer session_state'de kayıtlıysa)
-            onerilen_pn = st.session_state.hafiza_parca_pn if st.session_state.hafiza_parca_pn else ""
-            
-            e_p_pn = pn_col1.text_input("Parça PN (Sabit/Otomatik)", value=onerilen_pn)
-            
-            pn_getir_tik = pn_col2.form_submit_button("🔍 PN Getir", use_container_width=True)
-            
-            if pn_getir_tik:
-                if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
-                    bulunanlar = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).strip().upper()]
-                    if not bulunanlar.empty:
-                        son_p = bulunanlar.iloc[-1]
-                        bulunan_pn = son_p.get("parca_pn", "")
-                        if pd.notna(bulunan_pn) and bulunan_pn != "":
-                            st.session_state.hafiza_parca_pn = str(bulunan_pn)
-                            st.toast(f"✅ Bulunan PN yüklendi: {bulunan_pn}", icon="🔍")
-                            st.rerun()
-                        else:
-                            st.warning("Bu parçaya ait kayıtlı bir PN bulunamadı.")
-                    else:
-                        st.warning("Daha önce bu isimde bir parça kaydedilmemiş.")
-                else:
-                    st.warning("Lütfen önce parça adını yazın!")
+            e_parca = st.text_input("Parça Adı", value=initial_p_adi)
 
-            # Seri Numarası (SN) her parçada değişken olduğu için tamamen boş gelir
-            e_p_sn = st.text_input("Parça SN (Her Parça İçin Değişken/Boş)", value="")
+            c3, c4 = st.columns(2)
+            e_p_pn = c3.text_input("Parça PN (Sabit/Otomatik)", value=initial_p_pn)
+            e_p_sn = c4.text_input("Parça SN (Her Parça İçin Değişken/Boş)", value="")
 
             e_durum = st.selectbox(
                 "Durum",
                 ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"],
             )
 
-            e_tarih_obj = st.date_input(
-                "Onarım Tarihi",
-                value=datetime.date.today(),
-                format="DD.MM.YYYY",
-            )
+            e_tarih_obj = st.date_input("Onarım Tarihi", value=datetime.date.today(), format="DD.MM.YYYY")
             e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
 
             e_aciklama = st.text_area("Açıklama / Not")
-            yuklenen_dosya_form = st.file_uploader(
-                "Belge/Fotoğraf", type=["png", "jpg", "jpeg", "pdf"]
-            )
+            yuklenen_dosya_form = st.file_uploader("Belge/Fotoğraf", type=["png", "jpg", "jpeg", "pdf"])
 
             if st.form_submit_button("Sisteme Kaydet", type="primary"):
                 if not aktif_bolge or not e_sistem or not e_parca:
@@ -885,9 +681,7 @@ try:
                     dosya_ismi = None
                     if yuklenen_dosya_form is not None:
                         dosya_ismi = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{yuklenen_dosya_form.name}"
-                        with open(
-                            os.path.join(UPLOAD_FOLDER, dosya_ismi), "wb"
-                        ) as f:
+                        with open(os.path.join(UPLOAD_FOLDER, dosya_ismi), "wb") as f:
                             f.write(yuklenen_dosya_form.getbuffer())
 
                     with get_db_connection() as conn:
@@ -936,47 +730,30 @@ try:
                                 "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
                                 (
                                     tr_upper(e_p_sn),
-                                    datetime.datetime.now().strftime(
-                                        "%d.%m.%Y %H:%M"
-                                    ),
+                                    datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
                                     f"İLK KAYIT ({e_durum})",
                                     tr_upper(e_aciklama),
                                 ),
                             )
                         conn.commit()
 
-                    # Belleği temizle
-                    st.session_state.hafiza_parca_pn = ""
+                    st.session_state.form_parca_adi_input = ""
+                    st.session_state.form_parca_pn_input = ""
                     st.cache_data.clear()
-                    log_yaz(
-                        "YENİ KAYIT",
-                        f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.",
-                    )
-                    st.toast(
-                        "✅ Kayıt başarıyla eklendi ve yedeklendi!", icon="🎉"
-                    )
+                    log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
+                    st.toast("✅ Kayıt başarıyla eklendi ve yedeklendi!", icon="🎉")
                     st.rerun()
 
-    # 3. SEKME: ARIZALI BİRİMLER (HIZLI BİLDİRİM)
+    # 3. SEKME: ARIZALI BİRİMLER
     with tab_arizali:
         st.subheader("⚠️ Bölgesel Arıza Bildirimleri")
-        st.markdown(
-            "Seri numarası veya parça kodu girmeden, doğrudan bölge seçip arıza bildirimi ekleyebilir veya çözülenleri listeden kaldırabilirsiniz."
-        )
+        st.markdown("Seri numarası veya parça kodu girmeden, doğrudan bölge seçip arıza bildirimi ekleyebilir veya çözülenleri listeden kaldırabilirsiniz.")
 
-        kayitli_ariza_bolgeler = (
-            sorted(list(df_parcalar["bolge"].dropna().unique()))
-            if not df_parcalar.empty and "bolge" in df_parcalar.columns
-            else []
-        )
+        kayitli_ariza_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
         with st.form("hizli_ariza_form", clear_on_submit=True):
             st.markdown("##### ➕ Yeni Arıza Bildirimi Gir")
-            
-            a_secim_tipi = st.radio(
-                "Bölge Seçim Tipi", ["Kayıtlı Bölge Seç", "Yeni Bölge Yaz"], horizontal=True
-            )
-            
+            a_secim_tipi = st.radio("Bölge Seçim Tipi", ["Kayıtlı Bölge Seç", "Yeni Bölge Yaz"], horizontal=True)
             if a_secim_tipi == "Kayıtlı Bölge Seç" and len(kayitli_ariza_bolgeler) > 0:
                 a_bolge = st.selectbox("Bölge", kayitli_ariza_bolgeler)
             else:
@@ -1004,15 +781,12 @@ try:
 
         st.markdown("---")
         st.markdown("##### 📋 Aktif Arıza Bildirimleri Listesi")
-
         df_arizalar = veri_cek_arizalar()
         if not df_arizalar.empty:
             st.warning(f"Sistemde toplam **{len(df_arizalar)}** adet aktif arıza bildirimi bulunuyor.")
-            
             for _, a_row in df_arizalar.iterrows():
                 a_id = a_row["id"]
                 col_b1, col_b2 = st.columns([8, 2])
-                
                 with col_b1:
                     st.markdown(
                         f"**📍 {a_row.get('bolge', '-')}** — <small style='color:#a0a0a0;'>{a_row.get('tarih', '-')}</small><br>"
@@ -1035,24 +809,16 @@ try:
 
     # 4. SEKME: GÜNLÜK NOTLAR
     with tab_notlar:
-        kayitli_not_bolgeler = (
-            sorted(list(df_parcalar["bolge"].dropna().unique()))
-            if not df_parcalar.empty and "bolge" in df_parcalar.columns
-            else []
-        )
+        kayitli_not_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         st.subheader("📝 Günlük Notlar ve Olaylar")
         with st.form("gunluk_not_form", clear_on_submit=True):
-            n_bolge = st.selectbox(
-                "İlgili Bölge / Konum", ["GENEL"] + kayitli_not_bolgeler
-            )
+            n_bolge = st.selectbox("İlgili Bölge / Konum", ["GENEL"] + kayitli_not_bolgeler)
             n_detay = st.text_area("Günlük Not / Faaliyet Açıklaması")
             if st.form_submit_button("Notu Kaydet", type="primary"):
                 if not n_detay:
                     st.warning("Not içeriği boş olamaz!")
                 else:
-                    tarih_str = datetime.datetime.now().strftime(
-                        "%d.%m.%Y %H:%M"
-                    )
+                    tarih_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
                     with get_db_connection() as conn:
                         with conn.cursor() as cursor:
                             cursor.execute(
@@ -1069,9 +835,7 @@ try:
         if not df_notlar.empty:
             st.markdown("---")
             for _, nrow in df_notlar.iterrows():
-                st.markdown(
-                    f"**📅 {nrow.get('tarih', '-')} | 📍 {nrow.get('bolge', '-')}**"
-                )
+                st.markdown(f"**📅 {nrow.get('tarih', '-')} | 📍 {nrow.get('bolge', '-')}**")
                 st.info(nrow.get("detay", ""))
         else:
             st.info("Henüz kaydedilmiş günlük not bulunmuyor.")
@@ -1081,9 +845,7 @@ try:
         st.subheader("📜 Sistem İşlem Logları")
         df_loglar = veri_cek_loglar()
         if not df_loglar.empty:
-            st.dataframe(
-                df_loglar, use_container_width=True, hide_index=True
-            )
+            st.dataframe(df_loglar, use_container_width=True, hide_index=True)
             if st.button("Tüm Logları Temizle", type="primary"):
                 with get_db_connection() as conn:
                     with conn.cursor() as cursor:
@@ -1098,9 +860,7 @@ try:
     # 6. SEKME: PARÇA GEÇMİŞİ
     with tab_gecmis:
         st.subheader("🔍 Parça Seri Numarası Geçmişi")
-        s_ara_sn = st.text_input(
-            "Aranacak Parça Seri Numarası (SN)", key="parca_gecmis_input"
-        )
+        s_ara_sn = st.text_input("Aranacak Parça Seri Numarası (SN)", key="parca_gecmis_input")
         if s_ara_sn:
             with get_db_connection() as conn:
                 df_gcek = pd.read_sql_query(
@@ -1109,16 +869,10 @@ try:
                     params=(f"%{s_ara_sn.strip()}%",),
                 )
             if not df_gcek.empty:
-                st.success(
-                    f"`{s_ara_sn}` seri numaralı parça için {len(df_gcek)} adet işlem geçmişi bulundu:"
-                )
+                st.success(f"`{s_ara_sn}` seri numaralı parça için {len(df_gcek)} adet işlem geçmişi bulundu:")
                 for _, grow in df_gcek.iterrows():
-                    st.markdown(
-                        f"• **{grow.get('tarih', '-')}** — `{grow.get('islem', '-')}`"
-                    )
-                    if pd.notna(grow.get("aciklama")) and str(
-                        grow.get("aciklama")
-                    ).strip():
+                    st.markdown(f"• **{grow.get('tarih', '-')}** — `{grow.get('islem', '-')}`")
+                    if pd.notna(grow.get("aciklama")) and str(grow.get("aciklama")).strip():
                         st.caption(f"Açıklama: {grow.get('aciklama')}")
                     st.markdown("---")
             else:
@@ -1131,9 +885,7 @@ try:
 
         with col_y1:
             st.markdown("##### 📥 Excel Yedek İndir")
-            if st.button(
-                "Anlık Excel Raporu Oluştur ve İndir", type="primary"
-            ):
+            if st.button("Anlık Excel Raporu Oluştur ve İndir", type="primary"):
                 output = io.BytesIO()
                 df_p = veri_cek_parcalar()
                 df_n = veri_cek_notlar()
@@ -1145,15 +897,11 @@ try:
 
                 with pd.ExcelWriter(output, engine="openpyxl") as writer:
                     df_p.to_excel(writer, sheet_name="Parcalar", index=False)
-                    df_n.to_excel(
-                        writer, sheet_name="Gunluk_Notlar", index=False
-                    )
+                    df_n.to_excel(writer, sheet_name="Gunluk_Notlar", index=False)
                     df_a.to_excel(writer, sheet_name="Arizali_Birimler", index=False)
                     df_l.to_excel(writer, sheet_name="Loglar", index=False)
                     df_d.to_excel(writer, sheet_name="Depo_Stok", index=False)
-                    df_g.to_excel(
-                        writer, sheet_name="Parca_Gecmisi", index=False
-                    )
+                    df_g.to_excel(writer, sheet_name="Parca_Gecmisi", index=False)
                     excel_stili_uygula(writer)
 
                 processed_data = output.getvalue()
@@ -1166,18 +914,9 @@ try:
 
         with col_y2:
             st.markdown("##### 📂 Otomatik Yedekler")
-            yedek_dosyalari = sorted(
-                [
-                    f
-                    for f in os.listdir(AUTOSAVE_FOLDER)
-                    if f.endswith(".xlsx")
-                ],
-                reverse=True,
-            )
+            yedek_dosyalari = sorted([f for f in os.listdir(AUTOSAVE_FOLDER) if f.endswith(".xlsx")], reverse=True)
             if yedek_dosyalari:
-                secilen_yedek = st.selectbox(
-                    "İndirilecek Otomatik Yedeği Seç", yedek_dosyalari
-                )
+                secilen_yedek = st.selectbox("İndirilecek Otomatik Yedeği Seç", yedek_dosyalari)
                 yedek_tam_yol = os.path.join(AUTOSAVE_FOLDER, secilen_yedek)
                 with open(yedek_tam_yol, "rb") as yf:
                     st.download_button(
@@ -1196,7 +935,6 @@ try:
         
         df_depo = veri_cek_depo()
 
-        # Depo İstatistik / Bilgi Paneli
         d_toplam = len(df_depo)
         d_konumlar = df_depo["bolge"].nunique() if not df_depo.empty and "bolge" in df_depo.columns else 0
         d_cesit = df_depo["parca_adi"].nunique() if not df_depo.empty and "parca_adi" in df_depo.columns else 0
@@ -1291,7 +1029,6 @@ try:
                                 with conn.cursor() as cursor:
                                     for _, y_row in df_yuklenen.iterrows():
                                         b_parca = str(y_row[secilen_parca_col]).strip() if secilen_parca_col and pd.notna(y_row[secilen_parca_col]) else ""
-                                        
                                         b_bolge = str(y_row[secilen_bolge_col]).strip() if secilen_bolge_col != "Sabit Merkez Depo" and pd.notna(y_row[secilen_bolge_col]) else "MERKEZ DEPO"
                                         b_pn = str(y_row[secilen_pn_col]).strip() if secilen_pn_col != "Yok" and pd.notna(y_row[secilen_pn_col]) else "-"
                                         b_sn = str(y_row[secilen_sn_col]).strip() if secilen_sn_col != "Yok" and pd.notna(y_row[secilen_sn_col]) else "-"
@@ -1326,7 +1063,6 @@ try:
                     except Exception as ex:
                         st.error(f"Excel okunurken hata oluştu: {ex}")
 
-        # Tekil Malzeme Ekleme Alanı
         with st.expander("➕ Tekil Depo Malzemesi Ekle", expanded=False):
             with st.form("depoya_ekle_form", clear_on_submit=True):
                 dc1, dc2 = st.columns(2)
@@ -1374,7 +1110,6 @@ try:
 
         st.markdown("<hr style='margin:15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
-        # Depo Arama ve Filtreleme Çubuğu
         depo_arama = st.text_input("🔍 Depoda Malzeme Ara (Parça Adı, SN, PN veya Bölge)")
 
         if not df_depo.empty:
@@ -1382,13 +1117,7 @@ try:
             if depo_arama:
                 da_upper = tr_upper(depo_arama)
                 filt_depo = filt_depo[
-                    filt_depo.apply(
-                        lambda row: row.astype(str)
-                        .str.upper()
-                        .str.contains(da_upper)
-                        .any(),
-                        axis=1,
-                    )
+                    filt_depo.apply(lambda row: row.astype(str).str.upper().str.contains(da_upper).any(), axis=1)
                 ]
 
             st.markdown(f"<small style='color:#a0a0a0;'>Listelenen Toplam Kayıt: {len(filt_depo)} | Farklı Malzeme Çeşidi: {filt_depo['parca_adi'].nunique() if not filt_depo.empty else 0}</small>", unsafe_allow_html=True)
