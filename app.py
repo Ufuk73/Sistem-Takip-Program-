@@ -206,43 +206,6 @@ try:
                 )
             conn.commit()
 
-            with get_db_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT * FROM parcalar WHERE durum = 'YEDEK PARÇA'")
-                    colnames = [desc[0] for desc in cursor.description]
-                    rows = cursor.fetchall()
-                    
-                    for row in rows:
-                        r_dict = dict(zip(colnames, row))
-                        p_sn = r_dict.get("parca_sn", "-")
-                        
-                        eklenebilir = True
-                        if p_sn and p_sn != "-" and p_sn != "":
-                            cursor.execute("SELECT id FROM depo_stok WHERE parca_sn = %s", (p_sn,))
-                            if cursor.fetchone():
-                                eklenebilir = False
-                        
-                        if eklenebilir:
-                            cursor.execute(
-                                """
-                                INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """,
-                                (
-                                    r_dict.get("bolge", "-"),
-                                    r_dict.get("sistem_adi", "-"),
-                                    r_dict.get("sistem_pn", "-"),
-                                    r_dict.get("sistem_sn", "-"),
-                                    r_dict.get("parca_adi", "-"),
-                                    r_dict.get("parca_pn", "-"),
-                                    p_sn,
-                                    "YEDEK PARÇA",
-                                    r_dict.get("onarim_tarih", "-"),
-                                    r_dict.get("aciklama", ""),
-                                ),
-                            )
-                conn.commit()
-
 
     def log_yaz(islem_turu, detay):
         try:
@@ -365,6 +328,7 @@ try:
         )
 
     df_parcalar = veri_cek_parcalar()
+    df_depo = veri_cek_depo()
 
     toplam = len(df_parcalar)
     faal = len(df_parcalar[df_parcalar["durum"] == "FAAL"]) if not df_parcalar.empty and "durum" in df_parcalar.columns else 0
@@ -420,7 +384,7 @@ try:
         "📜 Loglar",
         "🔍 Parça Geçmişi",
         "⚙️ Yönetim",
-        "📦 Depo Listesi",
+        "📦 Depo / Sevk Listesi",
     ])
 
     @st.dialog("Kayıt Düzenle", width="large")
@@ -477,6 +441,27 @@ try:
                                     r_id,
                                 ),
                             )
+
+                            # Eğer SEVK 🚚 seçildiyse Depo/Sevk tablosuna aktar
+                            if e_durum == "SEVK 🚚":
+                                cursor.execute(
+                                    """
+                                    INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    """,
+                                    (
+                                        tr_upper(e_bolge),
+                                        tr_upper(e_sistem),
+                                        tr_upper(e_s_pn),
+                                        tr_upper(e_s_sn),
+                                        tr_upper(e_parca),
+                                        tr_upper(e_p_pn),
+                                        tr_upper(e_p_sn),
+                                        e_durum,
+                                        e_tarih_str,
+                                        tr_upper(e_aciklama),
+                                    ),
+                                )
                             cursor.execute(
                                 "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
                                 (
@@ -509,24 +494,25 @@ try:
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
 
-    # 1. SEKME: ENVANTER & DURUM TAKİP
+    # 1. SEKME: ENVANTER & DURUM TAKİP (YEDEK PARÇALAR BURADA GÖRÜNÜR, SEVK OLANLAR DEPOYA GİDER GİZLENİR)
     with tab_takip:
         if not df_parcalar.empty:
+            # SEVK 🚚 durumundaki parçaları sahadan gizleyip depo listesine atıyoruz
+            df_envanter = df_parcalar[df_parcalar["durum"] != "SEVK 🚚"].copy()
+
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
 
-            # Bölge ve Parça listelerini büyük harfe çevirip BENZERSİZ (TEKİL) yapıyoruz
-            bolgeler = ["TÜMÜ"] + sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if "bolge" in df_parcalar.columns else ["TÜMÜ"]
-            parcalar = ["TÜMÜ"] + sorted(list(set([tr_upper(p).strip() for p in df_parcalar["parca_adi"].dropna() if str(p).strip()]))) if "parca_adi" in df_parcalar.columns else ["TÜMÜ"]
-            durumlar = ["TÜMÜ", "FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL", "30 GÜN+ KRİTİK"]
+            bolgeler = ["TÜMÜ"] + sorted(list(set([tr_upper(b).strip() for b in df_envanter["bolge"].dropna() if str(b).strip()]))) if "bolge" in df_envanter.columns else ["TÜMÜ"]
+            parcalar = ["TÜMÜ"] + sorted(list(set([tr_upper(p).strip() for p in df_envanter["parca_adi"].dropna() if str(p).strip()]))) if "parca_adi" in df_envanter.columns else ["TÜMÜ"]
+            durumlar = ["TÜMÜ", "FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL", "30 GÜN+ KRİTİK"]
 
             f_bolge = col_f1.selectbox("📍 Bölge Filtresi", bolgeler)
             f_parca = col_f2.selectbox("📦 Parça Filtresi", parcalar)
             f_durum = col_f3.selectbox("📊 Durum Filtresi", durumlar)
             f_arama = col_f4.text_input("🔍 Hızlı Arama")
 
-            filt_df = df_parcalar.copy()
+            filt_df = df_envanter.copy()
             
-            # Filtreleme mantığını büyük/küçük harf bağımsız yapıyoruz
             if f_bolge != "TÜMÜ" and "bolge" in filt_df.columns:
                 filt_df = filt_df[filt_df["bolge"].apply(lambda x: tr_upper(x).strip() == f_bolge)]
             if f_parca != "TÜMÜ" and "parca_adi" in filt_df.columns:
@@ -681,6 +667,7 @@ try:
 
                     with get_db_connection() as conn:
                         with conn.cursor() as cursor:
+                            # Parça kaydı
                             cursor.execute(
                                 """
                                 INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
@@ -701,7 +688,8 @@ try:
                                 ),
                             )
 
-                            if e_durum == "YEDEK PARÇA":
+                            # Eğer SEVK 🚚 olarak girildiyse Depo / Sevk tablosuna aktarıyoruz
+                            if e_durum == "SEVK 🚚":
                                 cursor.execute(
                                     """
                                     INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
@@ -734,7 +722,7 @@ try:
 
                     st.cache_data.clear()
                     log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
-                    st.toast("✅ Kayıt başarıyla eklendi ve yedeklendi!", icon="🎉")
+                    st.toast("✅ Kayıt başarıyla eklendi!", icon="🎉")
                     st.rerun()
 
     # 3. SEKME: ARIZALI BİRİMLER
@@ -921,12 +909,10 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO LİSTESİ
+    # 8. SEKME: DEPO / SEVK LİSTESİ (SEVK EDİLEN MALZEMELER BURADA YÖNETİLİR)
     with tab_depo:
-        st.subheader("📦 Modern Depo ve Stok Yönetimi")
-        st.markdown("Depodaki malzemeleri isimlerine göre gruplanmış ve alfabetik sıraya göre yönetebilir, çoklu silme işlemi yapabilirsin.")
-        
-        df_depo = veri_cek_depo()
+        st.subheader("📦 Depo ve Sevk Yönetimi")
+        st.markdown("Sevk edilen ve depodaki malzemeleri yönetebilir, listeleyebilirsiniz.")
 
         d_toplam = len(df_depo)
         d_konumlar = df_depo["bolge"].nunique() if not df_depo.empty and "bolge" in df_depo.columns else 0
@@ -1041,7 +1027,7 @@ try:
                                                     tr_upper(b_parca),
                                                     tr_upper(b_pn),
                                                     tr_upper(b_sn),
-                                                    "YEDEK PARÇA",
+                                                    "SEVK 🚚",
                                                     tarih_str,
                                                     tr_upper(b_not),
                                                 ),
@@ -1090,7 +1076,7 @@ try:
                                         tr_upper(d_parca_giris),
                                         tr_upper(d_pn_giris),
                                         tr_upper(d_sn_giris),
-                                        "YEDEK PARÇA",
+                                        "SEVK 🚚",
                                         tarih_str,
                                         tr_upper(d_not_giris),
                                     ),
@@ -1145,7 +1131,7 @@ try:
                             st.markdown(
                                 f"""
                                 <div class="item-card" style='margin-bottom: 5px; padding: 8px 12px;'>
-                                    <div class="item-title" style='font-size: 14px;'>📦 {d_parca} <span class="tag-badge status-yedek">DEPO STOK</span> {bolge_badge}</div>
+                                    <div class="item-title" style='font-size: 14px;'>📦 {d_parca} <span class="tag-badge status-sevk">SEVK EDİLDİ</span> {bolge_badge}</div>
                                     <div class="item-sub" style='font-size: 12px;'>
                                         <b>Sistem:</b> {d_sistem} | <b>SN:</b> <code style='color:#00adb5;'>{d_sn}</code> | <b>PN:</b> {d_pn} | <b>Tarih:</b> {d_tarih}
                                     </div>
@@ -1156,19 +1142,7 @@ try:
                             )
                         
                         with col_acts:
-                            col_sevk, col_sil = st.columns(2)
-                            with col_sevk:
-                                if st.button("🚚", key=f"depo_sevk_{d_id}", help="Sevk Et ve Depodan Çıkar", use_container_width=True):
-                                    with get_db_connection() as conn:
-                                        with conn.cursor() as cursor:
-                                            if d_sn and d_sn != "-" and d_sn != "":
-                                                cursor.execute("UPDATE parcalar SET durum='SEVK 🚚' WHERE parca_sn=%s", (d_sn,))
-                                            cursor.execute("DELETE FROM depo_stok WHERE id=%s", (d_id,))
-                                        conn.commit()
-                                    st.cache_data.clear()
-                                    log_yaz("DEPO SEVK", f"Depodaki {d_parca} (SN: {d_sn}) sevk edildi.")
-                                    st.toast("✅ Malzeme sevk edildi!", icon="🚚")
-                                    st.rerun()
+                            col_sil = st.columns(1)[0]
                             with col_sil:
                                 if st.button("🗑️", key=f"depo_sil_{d_id}", help="Depodan Sil", use_container_width=True):
                                     with get_db_connection() as conn:
@@ -1197,7 +1171,7 @@ try:
                     st.toast(f"✅ Seçilen {len(secilen_idler)} malzeme silindi!", icon="🗑️")
                     st.rerun()
         else:
-            st.success("Depoda şu an kayıtlı malzeme bulunmuyor. 🎉")
+            st.success("Depoda şu an sevk edilmiş malzeme bulunmuyor. 🎉")
 
 except Exception as e:
     st.error(f"Kritik Hata: {e}")
