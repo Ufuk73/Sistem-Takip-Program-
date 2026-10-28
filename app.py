@@ -585,7 +585,7 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE
+    # 2. SEKME: YENİ KAYIT EKLE (AKILLI HASH KORUMASI İLE ÇİFT KAYIT ENGELLENDİ)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
@@ -663,39 +663,25 @@ try:
                 if not aktif_bolge or not e_sistem or not e_parca:
                     st.warning("Bölge, Sistem Adı ve Parça Adı zorunludur!")
                 else:
-                    dosya_ismi = None
-                    if yuklenen_dosya_form is not None:
-                        dosya_ismi = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{yuklenen_dosya_form.name}"
-                        with open(os.path.join(UPLOAD_FOLDER, dosya_ismi), "wb") as f:
-                            f.write(yuklenen_dosya_form.getbuffer())
+                    # Mükerrer / Çift Kayıt Engelleme Hash Kontrolü
+                    kayit_hash = f"{tr_upper(aktif_bolge)}_{tr_upper(e_sistem)}_{tr_upper(e_parca)}_{tr_upper(e_p_sn)}"
+                    if st.session_state.get("son_islem_hash") == kayit_hash:
+                        st.warning("⚠️ Bu kayıt az önce zaten eklendi!")
+                    else:
+                        st.session_state["son_islem_hash"] = kayit_hash
 
-                    with get_db_connection() as conn:
-                        with conn.cursor() as cursor:
-                            cursor.execute(
-                                """
-                                INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """,
-                                (
-                                    tr_upper(aktif_bolge),
-                                    tr_upper(e_sistem),
-                                    tr_upper(e_s_pn),
-                                    tr_upper(e_s_sn),
-                                    tr_upper(e_parca),
-                                    tr_upper(e_p_pn),
-                                    tr_upper(e_p_sn),
-                                    e_durum,
-                                    e_tarih_str,
-                                    tr_upper(e_aciklama),
-                                    dosya_ismi,
-                                ),
-                            )
+                        dosya_ismi = None
+                        if yuklenen_dosya_form is not None:
+                            dosya_ismi = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{yuklenen_dosya_form.name}"
+                            with open(os.path.join(UPLOAD_FOLDER, dosya_ismi), "wb") as f:
+                                f.write(yuklenen_dosya_form.getbuffer())
 
-                            if e_durum == "SEVK 🚚":
+                        with get_db_connection() as conn:
+                            with conn.cursor() as cursor:
                                 cursor.execute(
                                     """
-                                    INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     """,
                                     (
                                         tr_upper(aktif_bolge),
@@ -708,24 +694,45 @@ try:
                                         e_durum,
                                         e_tarih_str,
                                         tr_upper(e_aciklama),
+                                        dosya_ismi,
                                     ),
                                 )
 
-                            cursor.execute(
-                                "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
-                                (
-                                    tr_upper(e_p_sn),
-                                    datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
-                                    f"İLK KAYIT ({e_durum})",
-                                    tr_upper(e_aciklama),
-                                ),
-                            )
-                        conn.commit()
+                                if e_durum == "SEVK 🚚":
+                                    cursor.execute(
+                                        """
+                                        INSERT INTO depo_stok (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, ekleme_tarihi, aciklama)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        """,
+                                        (
+                                            tr_upper(aktif_bolge),
+                                            tr_upper(e_sistem),
+                                            tr_upper(e_s_pn),
+                                            tr_upper(e_s_sn),
+                                            tr_upper(e_parca),
+                                            tr_upper(e_p_pn),
+                                            tr_upper(e_p_sn),
+                                            e_durum,
+                                            e_tarih_str,
+                                            tr_upper(e_aciklama),
+                                        ),
+                                    )
 
-                    st.cache_data.clear()
-                    log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
-                    st.toast("✅ Kayıt başarıyla eklendi!", icon="🎉")
-                    st.rerun()
+                                cursor.execute(
+                                    "INSERT INTO parca_gecmis (parca_sn, tarih, islem, aciklama) VALUES (%s, %s, %s, %s)",
+                                    (
+                                        tr_upper(e_p_sn),
+                                        datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
+                                        f"İLK KAYIT ({e_durum})",
+                                        tr_upper(e_aciklama),
+                                    ),
+                                )
+                            conn.commit()
+
+                        st.cache_data.clear()
+                        log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
+                        st.toast("✅ Kayıt başarıyla eklendi!", icon="🎉")
+                        st.rerun()
 
     # 3. SEKME: ARIZALI BİRİMLER
     with tab_arizali:
