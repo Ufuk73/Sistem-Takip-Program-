@@ -442,7 +442,6 @@ try:
                                 ),
                             )
 
-                            # Eğer SEVK 🚚 seçildiyse Depo/Sevk tablosuna aktar
                             if e_durum == "SEVK 🚚":
                                 cursor.execute(
                                     """
@@ -494,10 +493,9 @@ try:
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
 
-    # 1. SEKME: ENVANTER & DURUM TAKİP (YEDEK PARÇALAR BURADA GÖRÜNÜR, SEVK OLANLAR DEPOYA GİDER GİZLENİR)
+    # 1. SEKME: ENVANTER & DURUM TAKİP
     with tab_takip:
         if not df_parcalar.empty:
-            # SEVK 🚚 durumundaki parçaları sahadan gizleyip depo listesine atıyoruz
             df_envanter = df_parcalar[df_parcalar["durum"] != "SEVK 🚚"].copy()
 
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -587,7 +585,7 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE
+    # 2. SEKME: YENİ KAYIT EKLE (BÖLGE SEÇİMİ DÜZELTİLDİ)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
@@ -606,7 +604,7 @@ try:
                 if secim_tipi == "Kayıtlı Bölge" and len(kayitli_bolgeler) > 0:
                     aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge")
                 else:
-                    aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
+                    aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge_input")
 
                 varsayilan_sistem = ""
                 varsayilan_s_pn = ""
@@ -667,7 +665,6 @@ try:
 
                     with get_db_connection() as conn:
                         with conn.cursor() as cursor:
-                            # Parça kaydı
                             cursor.execute(
                                 """
                                 INSERT INTO parcalar (bolge, sistem_adi, sistem_pn, sistem_sn, parca_adi, parca_pn, parca_sn, durum, onarim_tarih, aciklama, dosya_adi)
@@ -688,7 +685,6 @@ try:
                                 ),
                             )
 
-                            # Eğer SEVK 🚚 olarak girildiyse Depo / Sevk tablosuna aktarıyoruz
                             if e_durum == "SEVK 🚚":
                                 cursor.execute(
                                     """
@@ -909,7 +905,7 @@ try:
             else:
                 st.info("Henüz otomatik yedek bulunmuyor.")
 
-    # 8. SEKME: DEPO / SEVK LİSTESİ (SEVK EDİLEN MALZEMELER BURADA YÖNETİLİR)
+    # 8. SEKME: DEPO / SEVK LİSTESİ
     with tab_depo:
         st.subheader("📦 Depo ve Sevk Yönetimi")
         st.markdown("Sevk edilen ve depodaki malzemeleri yönetebilir, listeleyebilirsiniz.")
