@@ -598,38 +598,11 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (FORM DIŞINDA ANLIK OTOMATİK PN DOLDURMA)
+    # 2. SEKME: YENİ KAYIT EKLE (FORM İÇİNDE ANLIK PARÇA ADINDAN OTOMATİK PN ÇEKME)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
-        mevcut_parca_adlari = sorted(list(df_parcalar["parca_adi"].dropna().unique())) if not df_parcalar.empty and "parca_adi" in df_parcalar.columns else []
 
-        st.markdown("#### 📦 Parça Tanımlama ve Otomatik PN Doldurma")
-
-        p_mod = st.radio("Parça Giriş Yöntemi", ["Kayıtlı Parçalardan Seç", "Elle Parça Adı Yaz"], horizontal=True, key="p_giris_modu")
-
-        otomatik_pn = ""
-        secilen_veya_girilen_parca = ""
-
-        if p_mod == "Kayıtlı Parçalardan Seç":
-            if mevcut_parca_adlari:
-                secilen_veya_girilen_parca = st.selectbox("Kayıtlı Parça Seçin", ["-- Seçiniz --"] + mevcut_parca_adlari, key="parca_select_box")
-                if secilen_veya_girilen_parca != "-- Seçiniz --":
-                    match = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(secilen_veya_girilen_parca).upper()]
-                    if not match.empty:
-                        pn_val = match.iloc[-1].get("parca_pn", "")
-                        otomatik_pn = str(pn_val) if pd.notna(pn_val) else ""
-            else:
-                st.info("Henüz kayıtlı parça bulunmuyor, lütfen elle yazın.")
-        else:
-            secilen_veya_girilen_parca = st.text_input("Parça Adını Yazın (Enter'a basın)", key="parca_text_input")
-            if secilen_veya_girilen_parca.strip():
-                match = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(secilen_veya_girilen_parca).strip().upper()]
-                if not match.empty:
-                    pn_val = match.iloc[-1].get("parca_pn", "")
-                    otomatik_pn = str(pn_val) if pd.notna(pn_val) else ""
-                    st.toast(f"🔍 Geçmiş kayıttan PN bulundu: {otomatik_pn}", icon="✨")
-
-        st.markdown("---")
+        st.markdown("#### ➕ Yeni Sistem ve Parça Kaydı")
 
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             form_col_left, form_col_right = st.columns(2)
@@ -663,17 +636,25 @@ try:
                 e_s_pn = sub_c1.text_input("Sistem PN", value=varsayilan_s_pn)
                 e_s_sn = sub_c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            # SAĞ SÜTUN: PARÇA BİLGİLERİ (PN Otomatik Dolu, SN Boş)
+            # SAĞ SÜTUN: PARÇA BİLGİLERİ (Parça Adı yazılıp Enter'a basınca PN otomatik gelir)
             with form_col_right:
                 st.markdown("#### 📦 Parça Detayları")
                 
-                final_parca_adi = secilen_veya_girilen_parca if secilen_veya_girilen_parca != "-- Seçiniz --" else ""
+                e_parca = st.text_input("Parça Adı (Yazıp Enter'a basın)", key="form_parca_adi_giris")
                 
-                e_parca = st.text_input("Parça Adı", value=final_parca_adi)
-                
+                # Form içinde girilen parça adına göre geçmiş veritabanından PN bulma
+                bulunan_pn = ""
+                if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
+                    eslesen_parcalar = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).strip().upper()]
+                    if not eslesen_parcalar.empty:
+                        p_son = eslesen_parcalar.iloc[-1]
+                        p_val = p_son.get("parca_pn", "")
+                        if pd.notna(p_val):
+                            bulunan_pn = str(p_val)
+
                 sub_c3, sub_c4 = st.columns(2)
-                e_p_pn = sub_c3.text_input("Parça PN (Sabit/Otomatik)", value=otomatik_pn)
-                e_p_sn = sub_c4.text_input("Parça SN (Her Parça İçin Boş/Değişken)", value="")
+                e_p_pn = sub_c3.text_input("Parça PN (Otomatik / Sabit)", value=bulunan_pn)
+                e_p_sn = sub_c4.text_input("Parça SN (Her Parça İçin Boş / Değişken)", value="")
 
                 e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"])
                 
