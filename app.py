@@ -598,35 +598,13 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (OPTION 1: SELECTBOX + AUTO-FILL PN, BLANK SN)
+    # 2. SEKME: YENİ KAYIT EKLE (ŞIK İKİ SÜTUNLU MODERN DÜZEN)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
-
-        secim_tipi = st.radio("Bölge Giriş", ["Kayıtlı Seç", "Yeni Yaz"], horizontal=True, key="form_secim_tipi")
-
-        aktif_bolge = ""
-        if secim_tipi == "Kayıtlı Seç" and len(kayitli_bolgeler) > 0:
-            aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge")
-        else:
-            aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
-
-        varsayilan_sistem = ""
-        varsayilan_s_pn = ""
-        varsayilan_s_sn = ""
-
-        if aktif_bolge and not df_parcalar.empty and "bolge" in df_parcalar.columns:
-            eslesen_kayitlar = df_parcalar[df_parcalar["bolge"].str.upper() == str(aktif_bolge).upper()]
-            if not eslesen_kayitlar.empty:
-                son_kayit = eslesen_kayitlar.iloc[-1]
-                varsayilan_sistem = son_kayit.get("sistem_adi", "") if pd.notna(son_kayit.get("sistem_adi", "")) else ""
-                varsayilan_s_pn = son_kayit.get("sistem_pn", "") if pd.notna(son_kayit.get("sistem_pn", "")) else ""
-                varsayilan_s_sn = son_kayit.get("sistem_sn", "") if pd.notna(son_kayit.get("sistem_sn", "")) else ""
-
         mevcut_parca_adlari = sorted(list(df_parcalar["parca_adi"].dropna().unique())) if not df_parcalar.empty and "parca_adi" in df_parcalar.columns else []
         parca_secenekleri = ["➕ Yeni Parça Yaz..."] + mevcut_parca_adlari
 
-        st.markdown(f"📌 **Seçilen/Girilen Bölge:** `{aktif_bolge if aktif_bolge else 'Henüz seçilmedi'}`")
-
+        # Parça Değiştiğinde Tetiklenen Akıllı Fonksiyon
         def parca_secim_degisti():
             secim = st.session_state.get("secilen_parca_selectbox", "➕ Yeni Parça Yaz...")
             if secim != "➕ Yeni Parça Yaz...":
@@ -641,40 +619,76 @@ try:
                 st.session_state.form_parca_adi_input = ""
                 st.session_state.form_parca_pn_input = ""
 
-        parca_secim_modu = st.selectbox(
-            "Parça Seç / Ekle",
+        # Form Üstü Akıllı Parça Seçim Kutusu
+        st.markdown("##### 🔍 Kayıtlı Parçalardan Hızlı Seç")
+        st.selectbox(
+            "Depodaki / Sistemdeki Kayıtlı Parçayı Arayın",
             parca_secenekleri,
             key="secilen_parca_selectbox",
-            on_change=parca_secim_degisti
+            on_change=parca_secim_degisti,
+            help="Eski parçayı seçtiğinizde Parça PN otomatik dolacaktır."
         )
 
+        st.markdown("---")
+
         with st.form("yeni_kayit_formu", clear_on_submit=True):
-            e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
-            c1, c2 = st.columns(2)
-            e_s_pn = c1.text_input("Sistem PN", value=varsayilan_s_pn)
-            e_s_sn = c2.text_input("Sistem SN", value=varsayilan_s_sn)
+            form_col_left, form_col_right = st.columns(2)
 
-            initial_p_adi = st.session_state.get("form_parca_adi_input", "")
-            initial_p_pn = st.session_state.get("form_parca_pn_input", "")
+            # SOL SÜTUN: BÖLGE VE CİHAZ/SİSTEM BİLGİLERİ
+            with form_col_left:
+                st.markdown("#### 📍 Bölge & Cihaz Bilgileri")
+                
+                secim_tipi = st.radio("Bölge Giriş Tipi", ["Kayıtlı Bölge", "Yeni Bölge"], horizontal=True, key="form_secim_tipi")
 
-            e_parca = st.text_input("Parça Adı", value=initial_p_adi)
+                aktif_bolge = ""
+                if secim_tipi == "Kayıtlı Bölge" and len(kayitli_bolgeler) > 0:
+                    aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge")
+                else:
+                    aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge")
 
-            c3, c4 = st.columns(2)
-            e_p_pn = c3.text_input("Parça PN (Sabit/Otomatik)", value=initial_p_pn)
-            e_p_sn = c4.text_input("Parça SN (Her Parça İçin Değişken/Boş)", value="")
+                varsayilan_sistem = ""
+                varsayilan_s_pn = ""
+                varsayilan_s_sn = ""
 
-            e_durum = st.selectbox(
-                "Durum",
-                ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"],
-            )
+                if aktif_bolge and not df_parcalar.empty and "bolge" in df_parcalar.columns:
+                    eslesen_kayitlar = df_parcalar[df_parcalar["bolge"].str.upper() == str(aktif_bolge).upper()]
+                    if not eslesen_kayitlar.empty:
+                        son_kayit = eslesen_kayitlar.iloc[-1]
+                        varsayilan_sistem = son_kayit.get("sistem_adi", "") if pd.notna(son_kayit.get("sistem_adi", "")) else ""
+                        varsayilan_s_pn = son_kayit.get("sistem_pn", "") if pd.notna(son_kayit.get("sistem_pn", "")) else ""
+                        varsayilan_s_sn = son_kayit.get("sistem_sn", "") if pd.notna(son_kayit.get("sistem_sn", "")) else ""
 
-            e_tarih_obj = st.date_input("Onarım Tarihi", value=datetime.date.today(), format="DD.MM.YYYY")
-            e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
+                e_sistem = st.text_input("Sistem Adı", value=varsayilan_sistem)
+                sub_c1, sub_c2 = st.columns(2)
+                e_s_pn = sub_c1.text_input("Sistem PN", value=varsayilan_s_pn)
+                e_s_sn = sub_c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
+            # SAĞ SÜTUN: MALZEME VE PARÇA BİLGİLERİ
+            with form_col_right:
+                st.markdown("#### 📦 Malzeme & Parça Detayları")
+                
+                initial_p_adi = st.session_state.get("form_parca_adi_input", "")
+                initial_p_pn = st.session_state.get("form_parca_pn_input", "")
+
+                e_parca = st.text_input("Parça Adı", value=initial_p_adi, help="Yukarıdan seçtiyseniz otomatik gelir.")
+                
+                sub_c3, sub_c4 = st.columns(2)
+                e_p_pn = sub_c3.text_input("Parça PN (Sabit/Otomatik)", value=initial_p_pn)
+                e_p_sn = sub_c4.text_input("Parça SN (Serbest / Değişken)", value="")
+
+                e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"])
+                
+                e_tarih_obj = st.date_input("Onarım / Ekleme Tarihi", value=datetime.date.today(), format="DD.MM.YYYY")
+                e_tarih_str = e_tarih_obj.strftime("%d.%m.%Y")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # ALT KISIM: AÇIKLAMA VE DOSYA YÜKLEME
             e_aciklama = st.text_area("Açıklama / Not")
-            yuklenen_dosya_form = st.file_uploader("Belge/Fotoğraf", type=["png", "jpg", "jpeg", "pdf"])
+            yuklenen_dosya_form = st.file_uploader("Belge/Fotoğraf Yükle", type=["png", "jpg", "jpeg", "pdf"])
 
-            if st.form_submit_button("Sisteme Kaydet", type="primary"):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.form_submit_button("🚀 Sisteme Kaydet", type="primary", use_container_width=True):
                 if not aktif_bolge or not e_sistem or not e_parca:
                     st.warning("Bölge, Sistem Adı ve Parça Adı zorunludur!")
                 else:
