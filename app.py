@@ -307,26 +307,6 @@ try:
         .status-gayri { background-color: #3d1e1e; color: #e74c3c; border: 1px solid #e74c3c; }
         .status-yedek { background-color: #1e2f3d; color: #3498db; border: 1px solid #3498db; }
         .status-sevk { background-color: #2e1e3d; color: #9b59b6; border: 1px solid #9b59b6; }
-        
-        .region-header {
-            background: linear-gradient(90deg, #1e2a38 0%, #1a1a1a 100%);
-            border: 1px solid #00adb5;
-            border-radius: 8px;
-            padding: 10px 15px;
-            margin: 15px 0 10px 0;
-            color: #00adb5;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .system-header {
-            background-color: #222222;
-            border-left: 3px solid #f1c40f;
-            padding: 6px 12px;
-            margin: 8px 0;
-            border-radius: 4px;
-            color: #ffffff;
-            font-weight: 600;
-        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -513,7 +493,7 @@ try:
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
 
-    # 1. SEKME: ENVANTER & BÖLGE-BİRİM ÇİFT GRUPLAMALI DURUM TAKİP
+    # 1. SEKME: ENVANTER & DURUM TAKİP (ESKİ HALİ)
     with tab_takip:
         if not df_parcalar.empty:
             df_envanter = df_parcalar[df_parcalar["durum"] != "SEVK 🚚"].copy()
@@ -524,7 +504,7 @@ try:
             parcalar = ["TÜMÜ"] + sorted(list(set([tr_upper(p).strip() for p in df_envanter["parca_adi"].dropna() if str(p).strip()]))) if "parca_adi" in df_envanter.columns else ["TÜMÜ"]
             durumlar = ["TÜMÜ", "FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL", "30 GÜN+ KRİTİK"]
 
-            f_bolge = col_f1.selectbox("📍 Bölge Filtresi (Şırnak, Cizre, Mardin vb.)", bolgeler)
+            f_bolge = col_f1.selectbox("📍 Bölge Filtresi", bolgeler)
             f_parca = col_f2.selectbox("📦 Parça Filtresi", parcalar)
             f_durum = col_f3.selectbox("📊 Durum Filtresi", durumlar)
             f_arama = col_f4.text_input("🔍 Hızlı Arama")
@@ -559,74 +539,47 @@ try:
             st.markdown("<hr style='margin:10px 0 15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
             if not filt_df.empty and "bolge" in filt_df.columns:
-                b_gruplari = filt_df.groupby("bolge")
-                
-                st.markdown(f"##### 📍 Toplam **{len(b_gruplari)}** Bölge Altındaki Sistemler ve Birimler Gruplandırıldı")
-                
-                # BÖLGE DÖNGÜSÜ
-                for b_adi, b_grubu in b_gruplari:
-                    b_toplam = len(b_grubu)
-                    b_faal = len(b_grubu[b_grubu["durum"] == "FAAL"])
-                    b_onarim = len(b_grubu[b_grubu["durum"] == "ONARIMDA"])
-                    
-                    durum_ozet = f"🟢 {b_faal} Faal"
-                    if b_onarim > 0:
-                        durum_ozet += f" | 🟡 {b_onarim} Onarımda"
+                for b_adi, b_grubu in filt_df.groupby("bolge"):
+                    with st.expander(f"📍 {b_adi}  ({len(b_grubu)} Kayıt)", expanded=False):
+                        for _, row in b_grubu.iterrows():
+                            r_id = row["id"]
+                            durum = row.get("durum", "FAAL")
+                            p_sn = row.get("parca_sn", "-")
+                            p_pn = row.get("parca_pn", "-")
+                            p_adi = row.get("parca_adi", "Parça")
+                            s_adi = row.get("sistem_adi", "Sistem")
+                            s_sn = row.get("sistem_sn", "-")
 
-                    # BÖLGE BAŞLIĞI
-                    st.markdown(
-                        f"""
-                        <div class="region-header">
-                            📍 {b_adi} BÖLGESİ — <span style='font-size: 14px; color: #a0a0a0;'>Toplam: {b_toplam} Malzeme/Parça ({durum_ozet})</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                            status_class = (
+                                "status-faal" if durum == "FAAL"
+                                else ("status-onarim" if durum == "ONARIMDA"
+                                else ("status-gayri" if durum == "GAYRI FAAL"
+                                else ("status-yedek" if durum == "YEDEK PARÇA" else "status-sevk")))
+                            )
 
-                    # BÖLGE İÇİNDEKİ SİSTEMLERİ/BİRİMLERİ GRUPLA
-                    sistem_gruplari = b_grubu.groupby("sistem_adi")
-                    
-                    for s_adi, s_grubu in sistem_gruplari:
-                        s_sn_ornek = s_grubu["sistem_sn"].iloc[0] if "sistem_sn" in s_grubu.columns and pd.notna(s_grubu["sistem_sn"].iloc[0]) else "-"
-                        
-                        with st.expander(f"🖥️ {s_adi} (Sistem SN: {s_sn_ornek}) — [{len(s_grubu)} Adet Parça]", expanded=True):
-                            for _, row in s_grubu.iterrows():
-                                r_id = row["id"]
-                                durum = row.get("durum", "FAAL")
-                                p_sn = row.get("parca_sn", "-")
-                                p_pn = row.get("parca_pn", "-")
-                                p_adi = row.get("parca_adi", "Parça")
-
-                                status_class = (
-                                    "status-faal" if durum == "FAAL"
-                                    else ("status-onarim" if durum == "ONARIMDA"
-                                    else ("status-gayri" if durum == "GAYRI FAAL"
-                                    else ("status-yedek" if durum == "YEDEK PARÇA" else "status-sevk")))
-                                )
-
-                                c_card, c_acts = st.columns([8.5, 1.5])
-                                with c_card:
-                                    aciklama_html = f"<div style='font-size:12px; color:#888; margin-top:4px;'>📝 Not: {row.get('aciklama')}</div>" if pd.notna(row.get("aciklama")) and str(row.get("aciklama")).strip() else ""
-                                    st.markdown(
-                                        f"""
-                                        <div class="item-card">
-                                            <div class="item-title">📦 {p_adi} <span class="tag-badge {status_class}">{durum}</span></div>
-                                            <div class="item-sub">
-                                                <b>Parça SN:</b> <code style='color:#00adb5;'>{p_sn}</code> | <b>PN:</b> {p_pn} | <b>Tarih:</b> {row.get('onarim_tarih', '-')}
-                                            </div>
-                                            {aciklama_html}
+                            c_card, c_acts = st.columns([8.5, 1.5])
+                            with c_card:
+                                aciklama_html = f"<div style='font-size:12px; color:#888; margin-top:4px;'>📝 Not: {row.get('aciklama')}</div>" if pd.notna(row.get("aciklama")) and str(row.get("aciklama")).strip() else ""
+                                st.markdown(
+                                    f"""
+                                    <div class="item-card">
+                                        <div class="item-title">📦 {p_adi} <span class="tag-badge {status_class}">{durum}</span></div>
+                                        <div class="item-sub">
+                                            <b>Sistem:</b> {s_adi} (SN: {s_sn}) | <b>Parça SN:</b> <code style='color:#00adb5;'>{p_sn}</code> | <b>PN:</b> {p_pn} | <b>Tarih:</b> {row.get('onarim_tarih', '-')}
                                         </div>
-                                        """,
-                                        unsafe_allow_html=True,
-                                    )
-                                with c_acts:
-                                    col_b1, col_b2 = st.columns(2)
-                                    with col_b1:
-                                        if st.button("✏️", key=f"edit_{r_id}", help="Düzenle", use_container_width=True):
-                                            duzenle_dialog(r_id)
-                                    with col_b2:
-                                        if st.button("🗑️", key=f"del_{r_id}", help="Sil", use_container_width=True):
-                                            sil_onay_dialog(r_id, p_adi, p_sn)
+                                        {aciklama_html}
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                            with c_acts:
+                                col_b1, col_b2 = st.columns(2)
+                                with col_b1:
+                                    if st.button("✏️", key=f"edit_{r_id}", help="Düzenle", use_container_width=True):
+                                        duzenle_dialog(r_id)
+                                with col_b2:
+                                    if st.button("🗑️", key=f"del_{r_id}", help="Sil", use_container_width=True):
+                                        sil_onay_dialog(r_id, p_adi, p_sn)
             else:
                 st.info("Filtreleme kriterlerine uygun kayıt bulunamadı.")
         else:
@@ -657,7 +610,7 @@ try:
                 if secim_tipi == "Kayıtlı Bölge" and len(kayitli_bolgeler) > 0:
                     aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler)
                 else:
-                    aktif_bolge = st.text_input("Yeni Bölge Adı (Örn: Şırnak Merkez, Cizre, Mardin)")
+                    aktif_bolge = st.text_input("Yeni Bölge Adı")
 
                 varsayilan_sistem = ""
                 varsayilan_s_pn = ""
