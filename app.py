@@ -598,13 +598,13 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (FORM İÇİNDE ANLIK PARÇA ADINDAN OTOMATİK PN ÇEKME)
+    # 2. SEKME: YENİ KAYIT EKLE (PARÇA ADI SİLİNMEDEN KALIR)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
         st.markdown("#### ➕ Yeni Sistem ve Parça Kaydı")
 
-        with st.form("yeni_kayit_formu", clear_on_submit=True):
+        with st.form("yeni_kayit_formu", clear_on_submit=False):
             form_col_left, form_col_right = st.columns(2)
 
             # SOL SÜTUN: BÖLGE VE CİHAZ BİLGİLERİ
@@ -636,7 +636,7 @@ try:
                 e_s_pn = sub_c1.text_input("Sistem PN", value=varsayilan_s_pn)
                 e_s_sn = sub_c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            # SAĞ SÜTUN: PARÇA BİLGİLERİ (Parça Adı yazılıp Enter'a basınca PN otomatik gelir)
+            # SAĞ SÜTUN: PARÇA BİLGİLERİ (Yazılan parça adı ve bulunan PN silinmeden kalır)
             with form_col_right:
                 st.markdown("#### 📦 Parça Detayları")
                 
@@ -654,7 +654,7 @@ try:
 
                 sub_c3, sub_c4 = st.columns(2)
                 e_p_pn = sub_c3.text_input("Parça PN (Otomatik / Sabit)", value=bulunan_pn)
-                e_p_sn = sub_c4.text_input("Parça SN (Her Parça İçin Boş / Değişken)", value="")
+                e_p_sn = sub_c4.text_input("Parça SN (Her Parça İçin Boş / Değişken)", value="", key="form_parca_sn_giris")
 
                 e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"])
                 
