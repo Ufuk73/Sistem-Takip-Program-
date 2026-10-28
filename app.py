@@ -598,43 +598,43 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (ŞIK İKİ SÜTUNLU MODERN DÜZEN)
+    # 2. SEKME: YENİ KAYIT EKLE (FORM DIŞINDA ANLIK OTOMATİK PN DOLDURMA)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         mevcut_parca_adlari = sorted(list(df_parcalar["parca_adi"].dropna().unique())) if not df_parcalar.empty and "parca_adi" in df_parcalar.columns else []
-        parca_secenekleri = ["➕ Yeni Parça Yaz..."] + mevcut_parca_adlari
 
-        # Parça Değiştiğinde Tetiklenen Akıllı Fonksiyon
-        def parca_secim_degisti():
-            secim = st.session_state.get("secilen_parca_selectbox", "➕ Yeni Parça Yaz...")
-            if secim != "➕ Yeni Parça Yaz...":
-                st.session_state.form_parca_adi_input = secim
-                if not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
-                    match = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(secim).upper()]
+        st.markdown("#### 📦 Parça Tanımlama ve Otomatik PN Doldurma")
+
+        p_mod = st.radio("Parça Giriş Yöntemi", ["Kayıtlı Parçalardan Seç", "Elle Parça Adı Yaz"], horizontal=True, key="p_giris_modu")
+
+        otomatik_pn = ""
+        secilen_veya_girilen_parca = ""
+
+        if p_mod == "Kayıtlı Parçalardan Seç":
+            if mevcut_parca_adlari:
+                secilen_veya_girilen_parca = st.selectbox("Kayıtlı Parça Seçin", ["-- Seçiniz --"] + mevcut_parca_adlari, key="parca_select_box")
+                if secilen_veya_girilen_parca != "-- Seçiniz --":
+                    match = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(secilen_veya_girilen_parca).upper()]
                     if not match.empty:
-                        p_son = match.iloc[-1]
-                        pn_val = p_son.get("parca_pn", "")
-                        st.session_state.form_parca_pn_input = str(pn_val) if pd.notna(pn_val) else ""
+                        pn_val = match.iloc[-1].get("parca_pn", "")
+                        otomatik_pn = str(pn_val) if pd.notna(pn_val) else ""
             else:
-                st.session_state.form_parca_adi_input = ""
-                st.session_state.form_parca_pn_input = ""
-
-        # Form Üstü Akıllı Parça Seçim Kutusu
-        st.markdown("##### 🔍 Kayıtlı Parçalardan Hızlı Seç")
-        st.selectbox(
-            "Depodaki / Sistemdeki Kayıtlı Parçayı Arayın",
-            parca_secenekleri,
-            key="secilen_parca_selectbox",
-            on_change=parca_secim_degisti,
-            help="Eski parçayı seçtiğinizde Parça PN otomatik dolacaktır."
-        )
+                st.info("Henüz kayıtlı parça bulunmuyor, lütfen elle yazın.")
+        else:
+            secilen_veya_girilen_parca = st.text_input("Parça Adını Yazın (Enter'a basın)", key="parca_text_input")
+            if secilen_veya_girilen_parca.strip():
+                match = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(secilen_veya_girilen_parca).strip().upper()]
+                if not match.empty:
+                    pn_val = match.iloc[-1].get("parca_pn", "")
+                    otomatik_pn = str(pn_val) if pd.notna(pn_val) else ""
+                    st.toast(f"🔍 Geçmiş kayıttan PN bulundu: {otomatik_pn}", icon="✨")
 
         st.markdown("---")
 
         with st.form("yeni_kayit_formu", clear_on_submit=True):
             form_col_left, form_col_right = st.columns(2)
 
-            # SOL SÜTUN: BÖLGE VE CİHAZ/SİSTEM BİLGİLERİ
+            # SOL SÜTUN: BÖLGE VE CİHAZ BİLGİLERİ
             with form_col_left:
                 st.markdown("#### 📍 Bölge & Cihaz Bilgileri")
                 
@@ -663,18 +663,17 @@ try:
                 e_s_pn = sub_c1.text_input("Sistem PN", value=varsayilan_s_pn)
                 e_s_sn = sub_c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            # SAĞ SÜTUN: MALZEME VE PARÇA BİLGİLERİ
+            # SAĞ SÜTUN: PARÇA BİLGİLERİ (PN Otomatik Dolu, SN Boş)
             with form_col_right:
-                st.markdown("#### 📦 Malzeme & Parça Detayları")
+                st.markdown("#### 📦 Parça Detayları")
                 
-                initial_p_adi = st.session_state.get("form_parca_adi_input", "")
-                initial_p_pn = st.session_state.get("form_parca_pn_input", "")
-
-                e_parca = st.text_input("Parça Adı", value=initial_p_adi, help="Yukarıdan seçtiyseniz otomatik gelir.")
+                final_parca_adi = secilen_veya_girilen_parca if secilen_veya_girilen_parca != "-- Seçiniz --" else ""
+                
+                e_parca = st.text_input("Parça Adı", value=final_parca_adi)
                 
                 sub_c3, sub_c4 = st.columns(2)
-                e_p_pn = sub_c3.text_input("Parça PN (Sabit/Otomatik)", value=initial_p_pn)
-                e_p_sn = sub_c4.text_input("Parça SN (Serbest / Değişken)", value="")
+                e_p_pn = sub_c3.text_input("Parça PN (Sabit/Otomatik)", value=otomatik_pn)
+                e_p_sn = sub_c4.text_input("Parça SN (Her Parça İçin Boş/Değişken)", value="")
 
                 e_durum = st.selectbox("Durum", ["FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL"])
                 
@@ -683,7 +682,6 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # ALT KISIM: AÇIKLAMA VE DOSYA YÜKLEME
             e_aciklama = st.text_area("Açıklama / Not")
             yuklenen_dosya_form = st.file_uploader("Belge/Fotoğraf Yükle", type=["png", "jpg", "jpeg", "pdf"])
 
@@ -751,8 +749,6 @@ try:
                             )
                         conn.commit()
 
-                    st.session_state.form_parca_adi_input = ""
-                    st.session_state.form_parca_pn_input = ""
                     st.cache_data.clear()
                     log_yaz("YENİ KAYIT", f"Bölge: {aktif_bolge}, Sistem: {e_sistem} eklendi.")
                     st.toast("✅ Kayıt başarıyla eklendi ve yedeklendi!", icon="🎉")
