@@ -514,8 +514,9 @@ try:
         if not df_parcalar.empty:
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
 
-            bolgeler = ["TÜMÜ"] + list(df_parcalar["bolge"].dropna().unique()) if "bolge" in df_parcalar.columns else ["TÜMÜ"]
-            parcalar = ["TÜMÜ"] + list(df_parcalar["parca_adi"].dropna().unique()) if "parca_adi" in df_parcalar.columns else ["TÜMÜ"]
+            # Bölge ve Parça listelerini büyük harfe çevirip BENZERSİZ (TEKİL) yapıyoruz
+            bolgeler = ["TÜMÜ"] + sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if "bolge" in df_parcalar.columns else ["TÜMÜ"]
+            parcalar = ["TÜMÜ"] + sorted(list(set([tr_upper(p).strip() for p in df_parcalar["parca_adi"].dropna() if str(p).strip()]))) if "parca_adi" in df_parcalar.columns else ["TÜMÜ"]
             durumlar = ["TÜMÜ", "FAAL", "YEDEK PARÇA", "ONARIMDA", "SEVK 🚚", "GAYRI FAAL", "30 GÜN+ KRİTİK"]
 
             f_bolge = col_f1.selectbox("📍 Bölge Filtresi", bolgeler)
@@ -524,10 +525,12 @@ try:
             f_arama = col_f4.text_input("🔍 Hızlı Arama")
 
             filt_df = df_parcalar.copy()
+            
+            # Filtreleme mantığını büyük/küçük harf bağımsız yapıyoruz
             if f_bolge != "TÜMÜ" and "bolge" in filt_df.columns:
-                filt_df = filt_df[filt_df["bolge"] == f_bolge]
+                filt_df = filt_df[filt_df["bolge"].apply(lambda x: tr_upper(x).strip() == f_bolge)]
             if f_parca != "TÜMÜ" and "parca_adi" in filt_df.columns:
-                filt_df = filt_df[filt_df["parca_adi"] == f_parca]
+                filt_df = filt_df[filt_df["parca_adi"].apply(lambda x: tr_upper(x).strip() == f_parca)]
             if f_durum != "TÜMÜ" and f_durum != "30 GÜN+ KRİTİK" and "durum" in filt_df.columns:
                 filt_df = filt_df[filt_df["durum"] == f_durum]
             elif f_durum == "30 GÜN+ KRİTİK" and "durum" in filt_df.columns and "onarim_tarih" in filt_df.columns:
@@ -598,9 +601,9 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (PARÇA ADI SİLİNMEDEN KALIR)
+    # 2. SEKME: YENİ KAYIT EKLE
     with tab_ekle:
-        kayitli_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
+        kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
         st.markdown("#### ➕ Yeni Sistem ve Parça Kaydı")
 
@@ -636,13 +639,12 @@ try:
                 e_s_pn = sub_c1.text_input("Sistem PN", value=varsayilan_s_pn)
                 e_s_sn = sub_c2.text_input("Sistem SN", value=varsayilan_s_sn)
 
-            # SAĞ SÜTUN: PARÇA BİLGİLERİ (Yazılan parça adı ve bulunan PN silinmeden kalır)
+            # SAĞ SÜTUN: PARÇA BİLGİLERİ
             with form_col_right:
                 st.markdown("#### 📦 Parça Detayları")
                 
                 e_parca = st.text_input("Parça Adı (Yazıp Enter'a basın)", key="form_parca_adi_giris")
                 
-                # Form içinde girilen parça adına göre geçmiş veritabanından PN bulma
                 bulunan_pn = ""
                 if e_parca and not df_parcalar.empty and "parca_adi" in df_parcalar.columns:
                     eslesen_parcalar = df_parcalar[df_parcalar["parca_adi"].str.upper() == str(e_parca).strip().upper()]
@@ -740,7 +742,7 @@ try:
         st.subheader("⚠️ Bölgesel Arıza Bildirimleri")
         st.markdown("Seri numarası veya parça kodu girmeden, doğrudan bölge seçip arıza bildirimi ekleyebilir veya çözülenleri listeden kaldırabilirsiniz.")
 
-        kayitli_ariza_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
+        kayitli_ariza_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
         with st.form("hizli_ariza_form", clear_on_submit=True):
             st.markdown("##### ➕ Yeni Arıza Bildirimi Gir")
@@ -800,7 +802,7 @@ try:
 
     # 4. SEKME: GÜNLÜK NOTLAR
     with tab_notlar:
-        kayitli_not_bolgeler = sorted(list(df_parcalar["bolge"].dropna().unique())) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
+        kayitli_not_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
         st.subheader("📝 Günlük Notlar ve Olaylar")
         with st.form("gunluk_not_form", clear_on_submit=True):
             n_bolge = st.selectbox("İlgili Bölge / Konum", ["GENEL"] + kayitli_not_bolgeler)
