@@ -585,11 +585,20 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (BÖLGE GEÇİŞLERİ İÇİN ST.SESSION_STATE DESTEKLİ)
+    # 2. SEKME: YENİ KAYIT EKLE (RADYO BUTONU FORM DIŞINA ALINARAK ANLIK GEÇİŞ SAĞLANDI)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
         st.markdown("#### ➕ Yeni Sistem ve Parça Kaydı")
+
+        # RADYO BUTONU FORMUN DIŞINDA (Anlık tetikleme ve geçiş için)
+        st.markdown("##### 📍 Bölge Seçim Tipi")
+        secim_tipi = st.radio(
+            "Bölge Giriş Tipi", 
+            ["Kayıtlı Bölge", "Yeni Bölge"], 
+            horizontal=True, 
+            label_visibility="collapsed"
+        )
 
         with st.form("yeni_kayit_formu", clear_on_submit=False):
             form_col_left, form_col_right = st.columns(2)
@@ -598,22 +607,11 @@ try:
             with form_col_left:
                 st.markdown("#### 📍 Bölge & Cihaz Bilgileri")
                 
-                # Bölge tipini seçmek için callback tabanlı state yönetimi
-                if "secim_tipi_key" not in st.session_state:
-                    st.session_state.secim_tipi_key = "Kayıtlı Bölge"
-
-                secim_tipi = st.radio(
-                    "Bölge Giriş Tipi", 
-                    ["Kayıtlı Bölge", "Yeni Bölge"], 
-                    horizontal=True, 
-                    key="form_secim_tipi_radio"
-                )
-
                 aktif_bolge = ""
                 if secim_tipi == "Kayıtlı Bölge" and len(kayitli_bolgeler) > 0:
-                    aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge_box")
+                    aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler)
                 else:
-                    aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge_input_box")
+                    aktif_bolge = st.text_input("Yeni Bölge Adı")
 
                 varsayilan_sistem = ""
                 varsayilan_s_pn = ""
@@ -1179,5 +1177,5 @@ try:
             st.success("Depoda şu an sevk edilmiş malzeme bulunmuyor. 🎉")
 
 except Exception as e:
-    st.error(f"Kritik Hata: {e}")
+    st.error(f>Kritik Hata: {e})
     st.code(traceback.format_exc())
