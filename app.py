@@ -585,7 +585,7 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (BÖLGE SEÇİMİ DÜZELTİLDİ)
+    # 2. SEKME: YENİ KAYIT EKLE (BÖLGE GEÇİŞLERİ İÇİN ST.SESSION_STATE DESTEKLİ)
     with tab_ekle:
         kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
@@ -598,13 +598,22 @@ try:
             with form_col_left:
                 st.markdown("#### 📍 Bölge & Cihaz Bilgileri")
                 
-                secim_tipi = st.radio("Bölge Giriş Tipi", ["Kayıtlı Bölge", "Yeni Bölge"], horizontal=True, key="form_secim_tipi")
+                # Bölge tipini seçmek için callback tabanlı state yönetimi
+                if "secim_tipi_key" not in st.session_state:
+                    st.session_state.secim_tipi_key = "Kayıtlı Bölge"
+
+                secim_tipi = st.radio(
+                    "Bölge Giriş Tipi", 
+                    ["Kayıtlı Bölge", "Yeni Bölge"], 
+                    horizontal=True, 
+                    key="form_secim_tipi_radio"
+                )
 
                 aktif_bolge = ""
                 if secim_tipi == "Kayıtlı Bölge" and len(kayitli_bolgeler) > 0:
-                    aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge")
+                    aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler, key="form_secilen_bolge_box")
                 else:
-                    aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge_input")
+                    aktif_bolge = st.text_input("Yeni Bölge Adı", key="form_yeni_bolge_input_box")
 
                 varsayilan_sistem = ""
                 varsayilan_s_pn = ""
