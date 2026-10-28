@@ -307,6 +307,17 @@ try:
         .status-gayri { background-color: #3d1e1e; color: #e74c3c; border: 1px solid #e74c3c; }
         .status-yedek { background-color: #1e2f3d; color: #3498db; border: 1px solid #3498db; }
         .status-sevk { background-color: #2e1e3d; color: #9b59b6; border: 1px solid #9b59b6; }
+        
+        .region-header {
+            background: linear-gradient(90deg, #1e2a38 0%, #1a1a1a 100%);
+            border: 1px solid #00adb5;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 15px 0 10px 0;
+            color: #00adb5;
+            font-size: 17px;
+            font-weight: bold;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -493,7 +504,7 @@ try:
         if col_s2.button("İptal", use_container_width=True):
             st.rerun()
 
-    # 1. SEKME: ENVANTER & DURUM TAKİP
+    # 1. SEKME: ENVANTER & BÖLGE BAZLI DURUM TAKİP (YENİLENDİ)
     with tab_takip:
         if not df_parcalar.empty:
             df_envanter = df_parcalar[df_parcalar["durum"] != "SEVK 🚚"].copy()
@@ -504,7 +515,7 @@ try:
             parcalar = ["TÜMÜ"] + sorted(list(set([tr_upper(p).strip() for p in df_envanter["parca_adi"].dropna() if str(p).strip()]))) if "parca_adi" in df_envanter.columns else ["TÜMÜ"]
             durumlar = ["TÜMÜ", "FAAL", "YEDEK PARÇA", "ONARIMDA", "GAYRI FAAL", "30 GÜN+ KRİTİK"]
 
-            f_bolge = col_f1.selectbox("📍 Bölge Filtresi", bolgeler)
+            f_bolge = col_f1.selectbox("📍 Bölge Filtresi (Şırnak, Cizre, Mardin vb.)", bolgeler)
             f_parca = col_f2.selectbox("📦 Parça Filtresi", parcalar)
             f_durum = col_f3.selectbox("📊 Durum Filtresi", durumlar)
             f_arama = col_f4.text_input("🔍 Hızlı Arama")
@@ -539,8 +550,34 @@ try:
             st.markdown("<hr style='margin:10px 0 15px 0; border-color: #333;'>", unsafe_allow_html=True)
 
             if not filt_df.empty and "bolge" in filt_df.columns:
-                for b_adi, b_grubu in filt_df.groupby("bolge"):
-                    with st.expander(f"📍 {b_adi}  ({len(b_grubu)} Kayıt)", expanded=False):
+                # BÖLGE BAZLI GRUPLAMA VE LİSTELEME
+                b_gruplari = filt_df.groupby("bolge")
+                
+                # BÖLGE ÖZET BİLGİ BANTLARI
+                st.markdown(f"##### 📍 Toplam **{len(b_gruplari)}** Farklı Bölgede Envanter Listeleniyor")
+                
+                for b_adi, b_grubu in b_gruplari:
+                    b_toplam = len(b_grubu)
+                    b_faal = len(b_grubu[b_grubu["durum"] == "FAAL"])
+                    b_onarim = len(b_grubu[b_grubu["durum"] == "ONARIMDA"])
+                    b_gayri = len(b_grubu[b_grubu["durum"] == "GAYRI FAAL"])
+                    
+                    durum_ozet = f"🟢 {b_faal} Faal"
+                    if b_onarim > 0:
+                        durum_ozet += f" | 🟡 {b_onarim} Onarımda"
+                    if b_gayri > 0:
+                        durum_ozet += f" | 🔴 {b_gayri} Gayri Faal"
+
+                    st.markdown(
+                        f"""
+                        <div class="region-header">
+                            📍 {b_adi} BÖLGESİ — <span style='font-size: 14px; color: #a0a0a0;'>Toplam: {b_toplam} Malzeme/Cihaz ({durum_ozet})</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    with st.expander(f"📍 {b_adi} Bölgesi Parça Listesini Göster / Gizle ({b_toplam} Kayıt)", expanded=True):
                         for _, row in b_grubu.iterrows():
                             r_id = row["id"]
                             durum = row.get("durum", "FAAL")
@@ -585,7 +622,7 @@ try:
         else:
             st.info("Kayıt bulunmuyor.")
 
-    # 2. SEKME: YENİ KAYIT EKLE (AKILLI HASH KORUMASI İLE ÇİFT KAYIT ENGELLENDİ)
+    # 2. SEKME: YENİ KAYIT EKLE
     with tab_ekle:
         kayitli_bolgeler = sorted(list(set([tr_upper(b).strip() for b in df_parcalar["bolge"].dropna() if str(b).strip()]))) if not df_parcalar.empty and "bolge" in df_parcalar.columns else []
 
@@ -610,7 +647,7 @@ try:
                 if secim_tipi == "Kayıtlı Bölge" and len(kayitli_bolgeler) > 0:
                     aktif_bolge = st.selectbox("Bölge Seç", kayitli_bolgeler)
                 else:
-                    aktif_bolge = st.text_input("Yeni Bölge Adı")
+                    aktif_bolge = st.text_input("Yeni Bölge Adı (Örn: Şırnak, Cizre, Mardin)")
 
                 varsayilan_sistem = ""
                 varsayilan_s_pn = ""
@@ -663,7 +700,7 @@ try:
                 if not aktif_bolge or not e_sistem or not e_parca:
                     st.warning("Bölge, Sistem Adı ve Parça Adı zorunludur!")
                 else:
-                    # Mükerrer / Çift Kayıt Engelleme Hash Kontrolü
+                    # Mükerrer Kayıt Engelleme Hash Kontrolü
                     kayit_hash = f"{tr_upper(aktif_bolge)}_{tr_upper(e_sistem)}_{tr_upper(e_parca)}_{tr_upper(e_p_sn)}"
                     if st.session_state.get("son_islem_hash") == kayit_hash:
                         st.warning("⚠️ Bu kayıt az önce zaten eklendi!")
